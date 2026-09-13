@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "id": "madmasx.hermes-pets",
+  "name": "Hermes Pets",
+  "version": "0.1.0",
+  "author": "Madmasx",
+  "license": "MIT",
+  "description": "Animated Hermes petdex companion in the Omarchy bar: it plays sprite sheets from ~/.hermes/pets, looks at your cursor, waves when clicked, and can be pinned to the desktop. Reacts to Hermes agent activity when the activity hook is wired in.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Hermes Pets",
+    "description": "Animated sprite pet from ~/.hermes/pets",
+    "category": "Fun",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "petId": "",
+      "petsDir": "~/.hermes/pets",
+      "smooth": true,
+      "pinned": false,
+      "pinnedX": -1,
+      "pinnedY": -1,
+      "randomBehavior": true,
+      "animate": true,
+      "activityEnabled": false
+    },
+    "schema": [
+      {
+        "key": "petId",
+        "type": "string",
+        "label": "Pet",
+        "description": "Directory name under the pets folder. Pick it from the panel.",
+        "defaultValue": ""
+      },
+      {
+        "key": "petsDir",
+        "type": "string",
+        "label": "Pets folder",
+        "description": "Where Hermes petdex packages live (~/.hermes/pets).",
+        "defaultValue": "~/.hermes/pets"
+      },
+      {
+        "key": "smooth",
+        "type": "boolean",
+        "label": "Smooth scaling",
+        "description": "Turn off for pixel-art pets.",
+        "defaultValue": true
+      },
+      {
+        "key": "pinned",
+        "type": "boolean",
+        "label": "Pinned",
+        "description": "Keep the pet on the desktop with the panel closed.",
+        "defaultValue": false
+      },
+      {
+        "key": "pinnedX",
+        "type": "integer",
+        "label": "Pinned X",
+        "description": "Left edge of the pinned pet in screen pixels. -1 keeps it below its bar icon; dragging the pet sets it.",
+        "min": -1,
+        "max": 16384,
+        "step": 1,
+        "defaultValue": -1
+      },
+      {
+        "key": "pinnedY",
+        "type": "integer",
+        "label": "Pinned Y",
+        "description": "Top edge of the pinned pet in screen pixels. -1 keeps it below its bar icon; dragging the pet sets it.",
+        "min": -1,
+        "max": 16384,
+        "step": 1,
+        "defaultValue": -1
+      },
+      {
+        "key": "randomBehavior",
+        "type": "boolean",
+        "label": "Random behaviour",
+        "description": "Play a random move every 8-20 seconds.",
+        "defaultValue": true
+      },
+      {
+        "key": "animate",
+        "type": "boolean",
+        "label": "Animate",
+        "description": "Off shows a single still frame and runs no timer.",
+        "defaultValue": true
+      },
+      {
+        "key": "activityEnabled",
+        "type": "boolean",
+        "label": "React to Hermes activity",
+        "description": "When on, the pet changes pose based on Hermes agent state.",
+        "defaultValue": false
+      },
+      {
+        "key": "hudModeEnabled",
+        "type": "boolean",
+        "label": "Show HUD on click",
+        "description": "Show a floating HUD with agent state when clicking the pet.",
+        "defaultValue": true
+      },
+      {
+        "key": "movable",
+        "type": "boolean",
+        "label": "Movable pet",
+        "description": "Allow dragging the pet when pinned to desktop.",
+        "defaultValue": true
+      },
+      {
+        "key": "petScale",
+        "type": "number",
+        "label": "Pet scale",
+        "description": "Scale factor for the pet sprite (0.25 to 3.0, default 1.0).",
+        "min": 0.25,
+        "max": 3.0,
+        "step": 0.25,
+        "defaultValue": 1.0
+      }
+    ]
+  }
+}
