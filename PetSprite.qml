@@ -18,6 +18,8 @@ Item {
   property bool neutralBeat: false
   property real pressX: 0
   property real pressY: 0
+  property real lastX: 0
+  property real lastY: 0
   property bool dragMoved: false
 
   readonly property bool ready: sheet.status === Image.Ready
@@ -80,6 +82,8 @@ Item {
   function press(x, y) {
     pressX = x
     pressY = y
+    lastX = x
+    lastY = y
     dragMoved = false
   }
 
@@ -88,7 +92,9 @@ Item {
     var dy = y - pressY
     if (!dragMoved && Math.hypot(dx, dy) < Application.styleHints.startDragDistance) return
     dragMoved = true
-    dragged(dx, dy)
+    dragged(x - lastX, y - lastY)
+    lastX = x
+    lastY = y
   }
 
   function release() {
