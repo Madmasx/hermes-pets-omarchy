@@ -93,8 +93,8 @@ Panel {
         if (!pinned) return
         var mx = root.pinnedX >= 0 ? root.pinnedX + root.dragDx : Math.round(root.screenW / 2) - 96
         var my = root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104
-        saveSetting("pinnedX", Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - pinnedWindow.width))))
-        saveSetting("pinnedY", Math.round(root.clamp(my, 0, Math.max(0, root.screenH - pinnedWindow.height))))
+        saveSetting("pinnedX", Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20)))))
+        saveSetting("pinnedY", Math.round(root.clamp(my, 0, Math.max(0, root.screenH - (208 * petScale + 20)))))
         dragDx = 0
         dragDy = 0
     }
@@ -526,12 +526,12 @@ Panel {
         anchors.top: true
         anchors.left: true
         margins {
-            left: root.pinnedX >= 0
-                ? root.clamp(root.pinnedX + root.dragDx, 0, Math.max(0, root.screenW - 192 * petScale - 20))
-                : Math.round(root.screenW / 2) - 96
-            top: root.pinnedY >= 0
-                ? root.clamp(root.pinnedY + root.dragDy, 0, Math.max(0, root.screenH - 208 * petScale - 20))
-                : Math.round(root.screenH / 2) - 104
+            left: root.clamp(
+                (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx,
+                0, Math.max(0, root.screenW - 192 * petScale - 20))
+            top: root.clamp(
+                (root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104) + root.dragDy,
+                0, Math.max(0, root.screenH - 208 * petScale - 20))
         }
     }
 }
