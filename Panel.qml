@@ -91,12 +91,14 @@ Panel {
 
     function dropPet() {
         if (!pinned) return
-        var mx = root.pinnedX >= 0 ? root.pinnedX + root.dragDx : Math.round(root.screenW / 2) - 96
-        var my = root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104
+        var totalX = root.dragDx
+        var totalY = root.dragDy
+        root.dragDx = 0
+        root.dragDy = 0
+        var mx = root.pinnedX >= 0 ? root.pinnedX + totalX : Math.round(root.screenW / 2) - 96
+        var my = root.pinnedY >= 0 ? root.pinnedY + totalY : Math.round(root.screenH / 2) - 104
         saveSetting("pinnedX", Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20)))))
         saveSetting("pinnedY", Math.round(root.clamp(my, 0, Math.max(0, root.screenH - (208 * petScale + 20)))))
-        dragDx = 0
-        dragDy = 0
     }
 
     function saveSetting(key, value) {
