@@ -28,8 +28,7 @@ CursorSurface {
       anchors.verticalCenter: parent.verticalCenter
       height: Style.space(36)
       width: height * 192 / 208
-      source: row.pet ? row.pet.sheetUrl : ""
-      sourceClipRect: Qt.rect(0, 0, 192, 208)
+      source: row.pet ? (row.pet.thumbUrl || row.pet.sheetUrl || "") : ""
       fillMode: Image.PreserveAspectFit
       smooth: row.smoothScaling
       asynchronous: true

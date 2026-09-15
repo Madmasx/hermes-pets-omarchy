@@ -181,6 +181,7 @@ Panel {
                 id: petRepeater
                 model: library.pets
                 delegate: PetRow {
+                    required property var modelData
                     property var pet: modelData
                     fontFamily: root.fontFamily
                     smoothScaling: root.smoothScaling
@@ -392,7 +393,6 @@ Panel {
                             border.color: "#ffffff"
                             border.width: 1
                             Text { anchors.centerIn: parent; text: "\uf024"; font.pixelSize: 15; color: "#ffffff" }
-                            ToolTip.foreground: root.barForeground
                             ToolTip.text: root.movable ? "Desanclar del escritorio" : "Fijar al escritorio"
                             MouseArea {
                                 anchors.fill: parent
@@ -415,7 +415,6 @@ Panel {
                             border.color: "#ffffff"
                             border.width: 1
                             Text { anchors.centerIn: parent; text: root.hudModeEnabled ? "\uf128" : "\uf129"; font.pixelSize: 15; color: "#ffffff" }
-                            ToolTip.foreground: root.barForeground
                             ToolTip.text: root.hudModeEnabled ? "Desactivar HUD" : "Activar HUD"
                             MouseArea {
                                 anchors.fill: parent
@@ -438,7 +437,6 @@ Panel {
                             border.color: "#ffffff"
                             border.width: 1
                             Text { anchors.centerIn: parent; text: "\uf04b"; font.pixelSize: 15; color: "#ffffff" }
-                            ToolTip.foreground: root.barForeground
                             ToolTip.text: root.animate ? "Desactivar animación" : "Activar animación"
                             MouseArea {
                                 anchors.fill: parent

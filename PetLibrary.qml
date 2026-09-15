@@ -41,11 +41,13 @@ QtObject {
       if (parts[0] !== "pet") throw new Error("hermes-pets: unexpected scan line: " + lines[i])
       var dir = parts[1]
       var meta = JSON.parse(parts[2])
+      var name = dir.slice(dir.lastIndexOf("/") + 1)
       next.push({
-        name: dir.slice(dir.lastIndexOf("/") + 1),
+        name: name,
         displayName: meta.displayName || meta.id,
         kind: meta.kind || "",
-        sheetUrl: Util.fileUrl(dir + "/" + meta.spritesheetPath)
+        sheetUrl: Util.fileUrl(dir + "/" + meta.spritesheetPath),
+        thumbUrl: Util.fileUrl(root.petsDir + "/.thumbs/" + name + ".png")
       })
     }
     if (JSON.stringify(next) === JSON.stringify(pets)) return
