@@ -29,8 +29,8 @@ Panel {
     readonly property bool pinned: root.setting("pinned", false) === true
     readonly property int pinnedX: root.setting("pinnedX", -1)
     readonly property int pinnedY: root.setting("pinnedY", -1)
-    readonly property bool hudModeEnabled: root.setting("hudModeEnabled", true) === true
-    readonly property bool activityEnabled: root.setting("activityEnabled", false) === true
+    property bool hudModeEnabled: root.setting("hudModeEnabled", true) === true
+    property bool activityEnabled: root.setting("activityEnabled", false) === true
     property bool movable: root.setting("movable", true) === true
     property real petScale: (root.setting("petScale", 0.75) || 1.0)
 
@@ -181,8 +181,6 @@ Panel {
                 id: petRepeater
                 model: library.pets
                 delegate: PetRow {
-                    required property var modelData
-                    property var pet: modelData
                     fontFamily: root.fontFamily
                     smoothScaling: root.smoothScaling
                     foreground: root.barForeground
