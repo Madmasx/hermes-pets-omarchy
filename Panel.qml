@@ -404,7 +404,7 @@ Panel {
                             border.color: "#ffffff"
                             border.width: 1
                             Text { anchors.centerIn: parent; text: "\uf024"; font.pixelSize: 15; color: "#ffffff" }
-                            ToolTip.text: root.movable ? "Desanclar del escritorio" : "Fijar al escritorio"
+                            ToolTip.text: root.movable ? "Fijar posición (desactivar mover)" : "Permitir arrastrar la mascota"
                             MouseArea {
                                 anchors.fill: parent
                                 hoverEnabled: true
