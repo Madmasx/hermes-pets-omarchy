@@ -31,6 +31,7 @@ Panel {
     readonly property int pinnedY: root.setting("pinnedY", -1)
     property bool activityEnabled: root.setting("activityEnabled", false) === true
     property bool movable: root.setting("movable", true) === true
+    property bool hubEnabled: root.setting("hubEnabled", true) === true
     property real petScale: (root.setting("petScale", 0.75) || 1.0)
 
     readonly property real screenW: Quickshell.screen ? Quickshell.screen.width : 1920
@@ -61,8 +62,24 @@ Panel {
     }
 
     function launchApp() {
+        if (!root.hubEnabled) return
         if (root.bar && typeof root.bar.run === "function")
-            root.bar.run("bash \"" + home + "/.config/omarchy/plugins/madmasx.hermes-pets/open-hermes-hud.sh\"")
+            root.bar.run(root.hubCommand("open"))
+    }
+
+    function hubCommand(mode, mxOverride, myOverride) {
+        var scrW = Quickshell.screen ? Quickshell.screen.width : 1920
+        var scrH = Quickshell.screen ? Quickshell.screen.height : 1080
+        var monX = Quickshell.screen ? Quickshell.screen.x : 0
+        var monY = Quickshell.screen ? Quickshell.screen.y : 0
+        var mx = mxOverride >= 0 ? mxOverride : (root.pinnedX >= 0 ? root.pinnedX : Math.round(scrW / 2) - 96)
+        var my = myOverride >= 0 ? myOverride : (root.pinnedY >= 0 ? root.pinnedY : Math.round(scrH / 2) - 104)
+        var gx = monX + mx + root.dragDx
+        var gy = monY + my + root.dragDy
+        return "bash \"" + home + "/.config/omarchy/plugins/madmasx.hermes-pets/open-hermes-hud.sh\" "
+            + Math.round(gx) + " " + Math.round(gy) + " "
+            + Math.round(192 * petScale) + " " + Math.round(208 * petScale) + " "
+            + Math.round(scrW) + " " + Math.round(scrH) + " " + mode
     }
 
     function dragPet(dx, dy) {
@@ -79,8 +96,12 @@ Panel {
         root.dragDy = 0
         var mx = root.pinnedX >= 0 ? root.pinnedX + totalX : Math.round(root.screenW / 2) - 96
         var my = root.pinnedY >= 0 ? root.pinnedY + totalY : Math.round(root.screenH / 2) - 104
-        saveSetting("pinnedX", Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20)))))
-        saveSetting("pinnedY", Math.round(root.clamp(my, 0, Math.max(0, root.screenH - (208 * petScale + 20)))))
+        var nx = Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20))))
+        var ny = Math.round(root.clamp(my, 0, Math.max(0, root.screenH - (208 * petScale + 20))))
+        saveSetting("pinnedX", nx)
+        saveSetting("pinnedY", ny)
+        if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
+            root.bar.run(root.hubCommand("move", nx, ny))
     }
 
     function saveSetting(key, value) {
@@ -90,6 +111,7 @@ Panel {
     }
 
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
+    function toggleHubEnabled() { hubEnabled = !hubEnabled; saveSetting("hubEnabled", hubEnabled) }
     function toggleActivity() { activityEnabled = !activityEnabled; saveSetting("activityEnabled", activityEnabled) }
 
     function setScale(val) {
@@ -231,6 +253,13 @@ Panel {
             Column { id: settingsColumn; width: parent.width; spacing: Style.space(4)
 
                 Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlHub.width - Style.space(10); text: "Click pet: abrir Hub junto a él"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlHub; spacing: Style.space(4)
+                        ToggleSwitch { checked: hubEnabled; onToggled: root.toggleHubEnabled() }
+                    }
+                }
+
+                Row { width: parent.width; spacing: Style.space(10)
                     Text { width: parent.width - ctrlMove.width - Style.space(10); text: "Permitir mover el pet"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlMove; spacing: Style.space(4)
                         ToggleSwitch { checked: movable; onToggled: root.toggleMovable() }
@@ -269,7 +298,7 @@ Panel {
                 Text { width: parent.width; text: "Mascota: " + (root.currentPet ? root.currentPet.displayName : "Ninguna"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; opacity: 0.85 }
                 Text { width: parent.width; text: "Estado: " + (root.activityEnabled ? root.activityPose : "idle (sin monitoreo)"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
                 Text { width: parent.width; text: root.pinned ? ("Fijado" + (root.movable ? " (movible)" : " (fijo)")) : "Panel de barra"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
-                Text { width: parent.width; text: "Click en la mascota: abre el Hub de Hermes"; color: "#6c63ff"; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.8 }
+                Text { width: parent.width; text: root.hubEnabled ? "Click en la mascota: abre el Hub junto al pet" : "Click en la mascota: no hace nada (Hub desactivado)"; color: "#6c63ff"; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.8 }
             }
         }
     }

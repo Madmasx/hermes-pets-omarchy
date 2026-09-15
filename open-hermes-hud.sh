@@ -1,47 +1,83 @@
 #!/usr/bin/env bash
-# Abre el HUB (HUD mode) de Hermes Desktop: ventana flotante con el chat real.
-# Uso desde el plugin: bash open-hermes-hud.sh
+# Coloca y abre/repone el HUB (HUD mode) de Hermes Desktop AL COSTADO del pet.
+# Uso: bash open-hermes-hud.sh petGX petGY petW petH screenW screenH [mode]
+#   mode=open  → abre el Hub junto al pet (o lo reposiciona si ya está abierto). [por defecto]
+#   mode=move  → solo reposiciona si el Hub ya está abierto; no abre si estaba cerrado.
 set -u
 
-hud_open() {
-  hyprctl clients -j 2>/dev/null | jq -e 'any(.[]; .class == "Hermes" and ((.title // "") | contains("HUD")))' >/dev/null 2>&1
+PET_GX="${1:-960}"; PET_GY="${2:-540}"; PET_W="${3:-192}"; PET_H="${4:-208}"
+SCR_W="${5:-1920}"; SCR_H="${6:-1080}"; MODE="${7:-open}"
+HUD_W=620; HUD_H=320
+HUD_STATE="${HOME}/.config/Hermes/hud-state.json"
+
+# --- Posición objetivo: a la derecha del pet (centrado vertical); si no cabe, a la izquierda.
+tx=$((PET_GX + PET_W + 20))
+ty=$((PET_GY + (PET_H - HUD_H) / 2))
+max_x=$((SCR_W - HUD_W))
+max_y=$((SCR_H - HUD_H))
+if [ "$tx" -gt "$max_x" ]; then
+  tx=$((PET_GX - HUD_W - 20))
+fi
+if [ "$tx" -lt 0 ]; then tx=0; fi
+if [ "$ty" -lt 0 ]; then ty=0; fi
+if [ "$ty" -gt "$max_y" ]; then ty=$max_y; fi
+
+hud_addr() {
+  hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class == "Hermes" and ((.title // "") | contains("HUD"))) | .address' | head -1
+}
+main_addr() {
+  hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class == "Hermes" and .title == "Hermes") | .address' | head -1
+}
+focus_win() {
+  local a="$1"
+  [ -z "$a" ] && return 1
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$a\" })" >/dev/null 2>&1
 }
 
-# Ya está abierto el HUB: no tocar nada (evita un toggle que lo cierre).
-if hud_open; then exit 0; fi
+# Un HUD ya abierto → se cierra: la app restaura su ventana principal y
+# re-leerá hud-state.json en la próxima apertura (así aterriza junto al pet).
+h=$(hud_addr)
+if [ -n "$h" ]; then
+  focus_win "$h"
+  sleep 0.3
+  hyprctl dispatch 'hl.dsp.window.close()' >/dev/null 2>&1
+  sleep 1.5
+else
+  # Modo "move" (tras arrastrar el pet): no abrir si el Hub estaba cerrado.
+  [ "$MODE" = "move" ] && exit 0
+fi
 
-# Arranca (o trae al frente) la app Desktop. Si ya corre, el single-instance
-# enfoca su ventana principal y el CLI sale rápido.
+# Posición en disco antes de abrir: la app la valida y la usa (hudBounds).
+mkdir -p "$(dirname "$HUD_STATE")"
+printf '{\n  "x": %s,\n  "y": %s,\n  "width": %s,\n  "height": %s\n}\n' "$tx" "$ty" "$HUD_W" "$HUD_H" > "$HUD_STATE"
+
+# Arranca (o trae al frente) la app Desktop si no está corriendo.
 hermes desktop --skip-build >/dev/null 2>&1 &
 
-# Espera a que la ventana principal de Hermes tenga el foco y que el renderer
-# esté listo (los keybinds se registran al montar la UI). Sondeamos + reintentamos
-# el atajo varias veces: el primer arranque puede tardar bastante en conectar el backend.
+# Espera a que exista la ventana principal.
+addr=""
+for i in $(seq 1 60); do
+  addr=$(main_addr)
+  [ -n "$addr" ] && break
+  sleep 0.5
+done
+
+if [ -z "$addr" ]; then
+  exit 1
+fi
+
+# Foco explícito sobre la principal (determinista) + margen para el renderer.
+focus_win "$addr"
+
 for attempt in 1 2 3 4 5; do
-  # Espera a que Hermes tome el foco (hasta ~15s por intento).
-  got=no
-  c=""
-  for i in $(seq 1 30); do
-    c=$(hyprctl activewindow -j 2>/dev/null | jq -r '.class? // empty' 2>/dev/null)
-    if [ "$c" = "Hermes" ]; then got=yes; break; fi
+  focus_win "$addr"
+  sleep 4
+  if [ -n "$(hud_addr)" ]; then exit 0; fi
+  wtype -M ctrl -M shift -k h -m shift -m ctrl
+  for i in $(seq 1 8); do
+    if [ -n "$(hud_addr)" ]; then exit 0; fi
     sleep 0.5
   done
-
-  if [ "$got" = "yes" ] && ! hud_open; then
-    # Renderer listo + pequeño margen antes de pulsar Ctrl+Shift+H.
-    sleep 4
-    if ! hud_open; then
-      wtype -M ctrl -M shift -k h -m shift -m ctrl
-      for i in $(seq 1 8); do
-        if hud_open; then exit 0; fi
-        sleep 0.5
-      done
-    fi
-  fi
-
-  # Último intento: salimos limpio, el siguiente click volverá a intentar.
-  [ "$attempt" -eq 5 ] && break
-  sleep 3
 done
 
 exit 0
