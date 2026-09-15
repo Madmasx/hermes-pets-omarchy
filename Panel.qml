@@ -62,7 +62,7 @@ Panel {
 
     function launchApp() {
         if (root.bar && typeof root.bar.run === "function")
-            root.bar.run("hermes desktop --skip-build")
+            root.bar.run("bash \"" + home + "/.config/omarchy/plugins/madmasx.hermes-pets/open-hermes-hud.sh\"")
     }
 
     function dragPet(dx, dy) {
