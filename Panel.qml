@@ -13,6 +13,7 @@ Panel {
 
     property var anchorItem: null
     property var hostWidget: null
+    readonly property var barIdentity: hostWidget || root
 
     readonly property string home: Quickshell.env("HOME")
 
@@ -144,35 +145,11 @@ Panel {
 
     PetLibrary { id: library; active: root.hostWidget !== null; petsDir: root.petsDir }
 
-    // --- Bar button ---
-    BarIconButton {
-        id: button
-        anchors.fill: parent
-        bar: root.bar
-        text: root.pet ? "" : "\uf1b0"
-        iconComponent: root.pet ? petIcon : fallbackIcon
-        tooltipText: root.pet ? root.pet.displayName : "Hermes Pets"
-        onPressed: root.toggle()
-    }
-
-    Component { id: fallbackIcon; Image { source: Qt.resolvedUrl("image.png"); fillMode: Image.PreserveAspectFit; asynchronous: true } }
-
-    Component {
-        id: petIcon
-        Image {
-            source: root.pet ? root.pet.sheetUrl : ""
-            sourceClipRect: Qt.rect(0, 0, 192, 208)
-            fillMode: Image.PreserveAspectFit
-            smooth: root.smoothScaling
-            asynchronous: true
-        }
-    }
-
     // --- Panel popup ---
     KeyboardPanel {
         id: panel
-        anchorItem: button
-        owner: root
+        anchorItem: root.anchorItem
+        owner: root.barIdentity
         bar: root.bar
         open: root.opened
         padding: Style.space(14)
