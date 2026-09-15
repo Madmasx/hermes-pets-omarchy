@@ -34,6 +34,11 @@ Panel {
     property bool movable: root.setting("movable", true) === true
     property real petScale: (root.setting("petScale", 0.75) || 1.0)
 
+    readonly property real screenW: Quickshell.screen ? Quickshell.screen.width : 1920
+    readonly property real screenH: Quickshell.screen ? Quickshell.screen.height : 1080
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
+
     property int dragDx: 0
     property int dragDy: 0
     property bool hudShown: false
@@ -54,6 +59,7 @@ Panel {
 
     onOpenedChanged: { if (opened) library.rescan() }
     onPinnedChanged: if (pinned) root.controller.hide()
+    onPetIdChanged: if (pinned && !root.currentPet) root.saveSetting("pinned", false)
 
     function toggle() {
         if (pinned || !opened) open()
@@ -85,8 +91,10 @@ Panel {
 
     function dropPet() {
         if (!pinned) return
-        saveSetting("pinnedX", dragDx)
-        saveSetting("pinnedY", dragDy)
+        var mx = root.pinnedX >= 0 ? root.pinnedX + root.dragDx : Math.round(root.screenW / 2) - 96
+        var my = root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104
+        saveSetting("pinnedX", Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - pinnedWindow.width))))
+        saveSetting("pinnedY", Math.round(root.clamp(my, 0, Math.max(0, root.screenH - pinnedWindow.height))))
         dragDx = 0
         dragDy = 0
     }
@@ -241,32 +249,40 @@ Panel {
 
             Column { id: settingsColumn; width: parent.width; spacing: Style.space(4)
 
-                Row { spacing: Style.space(10)
-                    Text { text: "Mostrar HUD al clickear"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; width: parent.width * 0.58; elide: Text.ElideRight }
-                    ToggleSwitch { checked: hudModeEnabled; onToggled: root.toggleHudMode() }
+                Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlHud.width - Style.space(10); text: "Mostrar HUD al hacer click"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlHud; spacing: Style.space(4)
+                        ToggleSwitch { checked: hudModeEnabled; onToggled: root.toggleHudMode() }
+                    }
                 }
 
-                Row { spacing: Style.space(10)
-                    Text { text: "Permitir mover el pet"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; width: parent.width * 0.58; elide: Text.ElideRight }
-                    ToggleSwitch { checked: movable; onToggled: root.toggleMovable() }
+                Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlMove.width - Style.space(10); text: "Permitir mover el pet"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlMove; spacing: Style.space(4)
+                        ToggleSwitch { checked: movable; onToggled: root.toggleMovable() }
+                    }
                 }
 
-                Row { spacing: Style.space(10)
-                    Text { text: "Reaccionar a actividad"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; width: parent.width * 0.58; elide: Text.ElideRight }
-                    ToggleSwitch { checked: activityEnabled; onToggled: root.toggleActivity() }
+                Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlActivity.width - Style.space(10); text: "Reaccionar a actividad"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlActivity; spacing: Style.space(4)
+                        ToggleSwitch { checked: activityEnabled; onToggled: root.toggleActivity() }
+                    }
                 }
 
-                Row { spacing: Style.space(10)
-                    Text { text: "Tamaño: " + Math.round(petScale * 100) + "% (Alt+Scroll)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; width: parent.width * 0.58; elide: Text.ElideRight }
-                    Row { spacing: Style.space(4)
+                Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlScale.width - Style.space(10); text: "Tamaño: " + Math.round(petScale * 100) + "% (Alt+Scroll)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlScale; spacing: Style.space(4)
                         Button { text: "-"; width: Style.space(32); foreground: root.barForeground; fontFamily: root.fontFamily; fontSize: 14; onClicked: root.setScale(petScale - 0.25) }
                         Button { text: "+"; width: Style.space(32); foreground: root.barForeground; fontFamily: root.fontFamily; fontSize: 14; onClicked: root.setScale(petScale + 0.25) }
                     }
                 }
 
-                Row { spacing: Style.space(10)
-                    Text { text: "Animación"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; width: parent.width * 0.58; elide: Text.ElideRight }
-                    ToggleSwitch { checked: animate; onToggled: saveSetting("animate", checked) }
+                Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlAnim.width - Style.space(10); text: "Animación"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlAnim; spacing: Style.space(4)
+                        ToggleSwitch { checked: animate; onToggled: saveSetting("animate", checked) }
+                    }
                 }
             }
 
@@ -294,11 +310,8 @@ Panel {
 
         FocusScope {
             focus: true
-            // Centrar en pantalla usando Quickshell.screen
-            property real petX: root.pinnedX >= 0 ? root.pinnedX + root.dragDx : (Quickshell.screen ? Quickshell.screen.width : 1920) / 2 - 96
-            property real petY: root.pinnedY >= 0 ? root.pinnedY + root.dragDy : (Quickshell.screen ? Quickshell.screen.height : 1080) / 2 - 104
-            x: petX
-            y: petY
+            x: 0
+            y: 0
             width: 192
             height: 208
 
@@ -441,8 +454,7 @@ Panel {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    root.animate = !root.animate
-                                    root.saveSetting("animate", root.animate)
+                                    root.saveSetting("animate", !root.animate)
                                     console.log("[hermes-pets] animate: " + root.animate)
                                 }
                                 onEntered: btnAnim.border.color = "#ffcc00"
@@ -503,11 +515,23 @@ Panel {
     PanelWindow {
         id: pinnedWindow
         visible: root.pinned
-        implicitWidth: 192 * petScale + 20
-        implicitHeight: 208 * petScale + 20
+        width: 192 * petScale + 20
+        height: 208 * petScale + 20
         WlrLayershell.namespace: "hermes-pets"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+
+        anchors.top: true
+        anchors.left: true
+        margins {
+            left: root.pinnedX >= 0
+                ? root.clamp(root.pinnedX + root.dragDx, 0, Math.max(0, root.screenW - width))
+                : Math.round(root.screenW / 2) - 96
+            top: root.pinnedY >= 0
+                ? root.clamp(root.pinnedY + root.dragDy, 0, Math.max(0, root.screenH - height))
+                : Math.round(root.screenH / 2) - 104
+        }
     }
 }

@@ -93,7 +93,10 @@ Item {
 
   function release() {
     if (dragMoved) dropped()
-    else wave()
+    else {
+      wave()
+      hudClicked()
+    }
   }
 
   function step() {
