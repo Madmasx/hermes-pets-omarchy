@@ -14,7 +14,6 @@ BarWidget {
   function open() { if (panelLoader.item) panelLoader.item.open() }
   function close() { if (panelLoader.item) panelLoader.item.close() }
   function toggle() { if (panelLoader.item) panelLoader.item.toggle() }
-  function openHud() { if (panelLoader.item) panelLoader.item.openHud() }
 
   function injectPanel() {
     var target = panelLoader.item

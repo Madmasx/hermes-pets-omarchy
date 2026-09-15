@@ -29,7 +29,6 @@ Panel {
     readonly property bool pinned: root.setting("pinned", false) === true
     readonly property int pinnedX: root.setting("pinnedX", -1)
     readonly property int pinnedY: root.setting("pinnedY", -1)
-    property bool hudModeEnabled: root.setting("hudModeEnabled", true) === true
     property bool activityEnabled: root.setting("activityEnabled", false) === true
     property bool movable: root.setting("movable", true) === true
     property real petScale: (root.setting("petScale", 0.75) || 1.0)
@@ -41,8 +40,6 @@ Panel {
 
     property int dragDx: 0
     property int dragDy: 0
-    property bool hudShown: false
-    property bool functionBarShown: false
 
     readonly property var currentPet: {
         if (!petId) return null
@@ -54,9 +51,6 @@ Panel {
     readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
     readonly property color barForeground: bar ? bar.foreground : Style.textPrimary
 
-    readonly property string hudPetName: root.currentPet ? root.currentPet.displayName : "Hermes"
-    readonly property string hudPoseLabel: root.activityPose
-
     onOpenedChanged: { if (opened) library.rescan() }
     onPinnedChanged: if (pinned) root.controller.hide()
     onPetIdChanged: if (pinned && petId !== "" && !root.currentPet) root.saveSetting("pinned", false)
@@ -66,21 +60,9 @@ Panel {
         else close()
     }
 
-    function openHud() {
-        if (!hudModeEnabled || !pinned || hudShown) return
-        hudShown = true
-        hudTimer.restart()
-    }
-
-    function closeHud() { hudShown = false; hudTimer.stop() }
-
-    function toggleFunctionBar() {
-        if (!pinned) return
-        functionBarShown = !functionBarShown
-        if (functionBarShown) {
-            hudShown = false
-            hudTimer.stop()
-        }
+    function launchApp() {
+        if (root.bar && typeof root.bar.run === "function")
+            root.bar.run("hermes desktop --skip-build")
     }
 
     function dragPet(dx, dy) {
@@ -108,7 +90,6 @@ Panel {
     }
 
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
-    function toggleHudMode() { hudModeEnabled = !hudModeEnabled; saveSetting("hudModeEnabled", hudModeEnabled) }
     function toggleActivity() { activityEnabled = !activityEnabled; saveSetting("activityEnabled", activityEnabled) }
 
     function setScale(val) {
@@ -150,8 +131,6 @@ Panel {
                 sprite.beginAction(pose, 1)
         }
     }
-
-    Timer { id: hudTimer; interval: 3000; repeat: false; onTriggered: root.closeHud() }
 
     PetLibrary { id: library; active: root.hostWidget !== null; petsDir: root.petsDir }
 
@@ -252,13 +231,6 @@ Panel {
             Column { id: settingsColumn; width: parent.width; spacing: Style.space(4)
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlHud.width - Style.space(10); text: "Mostrar HUD al hacer click"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
-                    Row { id: ctrlHud; spacing: Style.space(4)
-                        ToggleSwitch { checked: hudModeEnabled; onToggled: root.toggleHudMode() }
-                    }
-                }
-
-                Row { width: parent.width; spacing: Style.space(10)
                     Text { width: parent.width - ctrlMove.width - Style.space(10); text: "Permitir mover el pet"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlMove; spacing: Style.space(4)
                         ToggleSwitch { checked: movable; onToggled: root.toggleMovable() }
@@ -297,7 +269,7 @@ Panel {
                 Text { width: parent.width; text: "Mascota: " + (root.currentPet ? root.currentPet.displayName : "Ninguna"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; opacity: 0.85 }
                 Text { width: parent.width; text: "Estado: " + (root.activityEnabled ? root.activityPose : "idle (sin monitoreo)"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
                 Text { width: parent.width; text: root.pinned ? ("Fijado" + (root.movable ? " (movible)" : " (fijo)")) : "Panel de barra"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
-                Text { id: hudStatusText; width: parent.width; text: "HUD: Activado"; color: "#6c63ff"; font.family: root.fontFamily; font.pixelSize: Style.font.caption; font.bold: true; opacity: 0.9; visible: root.hudModeEnabled }
+                Text { width: parent.width; text: "Click en la mascota: abre Hermes"; color: "#6c63ff"; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.8 }
             }
         }
     }
@@ -327,178 +299,7 @@ Panel {
                 randomBehavior: root.randomBehavior
                 onDragged: function(dx, dy) { root.dragPet(dx, dy) }
                 onDropped: root.dropPet()
-                onHudClicked: {
-                    if (root.hudModeEnabled) {
-                        root.openHud()
-                        root.functionBarShown = false
-                    } else {
-                        root.toggleFunctionBar()
-                    }
-                }
-            }
-
-            // --- Overlay HUD (modo HUD) ---
-            Item {
-                id: hudOverlay
-                visible: root.hudShown && root.pinned
-                anchors.centerIn: parent
-                z: 50
-                width: 160
-                height: 64
-
-                property string poseIcon: {
-                    switch (root.hudPoseLabel) {
-                        case "run": return String.fromCharCode(0x26A1)
-                        case "review": return String.fromCharCode(0x2713)
-                        case "wave": return String.fromCharCode(0x270C)
-                        case "jump": return String.fromCharCode(0x2694)
-                        case "failed": return String.fromCharCode(0x2717)
-                        case "waiting": return String.fromCharCode(0x23F3)
-                        default: return String.fromCharCode(0x263E)
-                    }
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 8
-                    color: "transparent"
-                    border.color: "#6c63ff"
-                    border.width: 1
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 3
-                        Text { text: hudOverlay.poseIcon; font.pixelSize: 20; color: "#6c63ff" }
-                        Text { text: root.hudPetName; font.pixelSize: 10; font.bold: true; color: "#ffffff" }
-                        Text { text: root.hudPoseLabel; font.pixelSize: 9; color: "#b8b8d0" }
-                    }
-                }
-                MouseArea { anchors.fill: parent; onClicked: root.closeHud() }
-            }
-
-            // --- Overlay de funciones rápidas (panel flotante estilo snap-preview) ---
-            Item {
-                id: functionBar
-                visible: root.functionBarShown && root.pinned
-                anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.topMargin: -6
-                anchors.rightMargin: -6
-                z: 200
-                width: 240
-                height: 52
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 8
-                    color: "#1a1a2e"
-                    border.color: "#6c63ff"
-                    border.width: 1
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 8
-
-                        // Botón Mover / Desmover
-                        Rectangle {
-                            id: btnMove
-                            width: 40; height: 40; radius: 8
-                            color: root.movable ? "#51cf66" : "#ff6b6b"
-                            border.color: "#ffffff"
-                            border.width: 1
-                            Text { anchors.centerIn: parent; text: "\uf024"; font.pixelSize: 15; color: "#ffffff" }
-                            ToolTip.text: root.movable ? "Fijar posición (desactivar mover)" : "Permitir arrastrar la mascota"
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.toggleMovable()
-                                    console.log("[hermes-pets] movable: " + root.movable)
-                                }
-                                onEntered: btnMove.border.color = "#ffcc00"
-                                onExited: btnMove.border.color = "#ffffff"
-                            }
-                        }
-
-                        // Botón HUD
-                        Rectangle {
-                            id: btnHud
-                            width: 40; height: 40; radius: 8
-                            color: root.hudModeEnabled ? "#6c63ff" : "#ff6b6b"
-                            border.color: "#ffffff"
-                            border.width: 1
-                            Text { anchors.centerIn: parent; text: root.hudModeEnabled ? "\uf128" : "\uf129"; font.pixelSize: 15; color: "#ffffff" }
-                            ToolTip.text: root.hudModeEnabled ? "Desactivar HUD" : "Activar HUD"
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.toggleHudMode()
-                                    console.log("[hermes-pets] hudModeEnabled: " + root.hudModeEnabled)
-                                }
-                                onEntered: btnHud.border.color = "#ffcc00"
-                                onExited: btnHud.border.color = "#ffffff"
-                            }
-                        }
-
-                        // Botón Animación
-                        Rectangle {
-                            id: btnAnim
-                            width: 40; height: 40; radius: 8
-                            color: root.animate ? "#51cf66" : "#ff6b6b"
-                            border.color: "#ffffff"
-                            border.width: 1
-                            Text { anchors.centerIn: parent; text: "\uf04b"; font.pixelSize: 15; color: "#ffffff" }
-                            ToolTip.text: root.animate ? "Desactivar animación" : "Activar animación"
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.saveSetting("animate", !root.animate)
-                                    console.log("[hermes-pets] animate: " + root.animate)
-                                }
-                                onEntered: btnAnim.border.color = "#ffcc00"
-                                onExited: btnAnim.border.color = "#ffffff"
-                            }
-                        }
-
-                        // Botón Escala -
-                        Rectangle {
-                            width: 32; height: 32; radius: 6
-                            color: "#2d2d44"
-                            border.color: "#aab"
-                            border.width: 1
-                            Text { anchors.centerIn: parent; text: "\u2212"; font.pixelSize: 16; color: "#ffffff" }
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.setScale(root.petScale - 0.25)
-                                onEntered: parent.color = "#6c63ff"
-                                onExited: parent.color = "#2d2d44"
-                            }
-                        }
-
-                        // Botón Escala +
-                        Rectangle {
-                            width: 32; height: 32; radius: 6
-                            color: "#2d2d44"
-                            border.color: "#aab"
-                            border.width: 1
-                            Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 14; color: "#ffffff" }
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.setScale(root.petScale + 0.25)
-                                onEntered: parent.color = "#6c63ff"
-                                onExited: parent.color = "#2d2d44"
-                            }
-                        }
-                    }
-                }
+                onHudClicked: root.launchApp()
             }
 
             // Escalado con Alt + Scroll
