@@ -59,7 +59,7 @@ Panel {
 
     onOpenedChanged: { if (opened) library.rescan() }
     onPinnedChanged: if (pinned) root.controller.hide()
-    onPetIdChanged: if (pinned && !root.currentPet) root.saveSetting("pinned", false)
+    onPetIdChanged: if (pinned && petId !== "" && !root.currentPet) root.saveSetting("pinned", false)
 
     function toggle() {
         if (pinned || !opened) open()
@@ -102,7 +102,7 @@ Panel {
     }
 
     function saveSetting(key, value) {
-        var reg = bar && bar.shell ? bar.shell.pluginRegistry : null
+        var reg = (typeof shell !== "undefined" && shell && shell.pluginRegistry) ? shell.pluginRegistry : null
         if (!reg) return
         var err = reg.setBarWidget(moduleName, key, value, {})
     }
