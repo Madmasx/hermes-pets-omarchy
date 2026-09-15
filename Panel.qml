@@ -515,8 +515,8 @@ Panel {
     PanelWindow {
         id: pinnedWindow
         visible: root.pinned
-        width: 192 * petScale + 20
-        height: 208 * petScale + 20
+        implicitWidth: 192 * petScale + 20
+        implicitHeight: 208 * petScale + 20
         WlrLayershell.namespace: "hermes-pets"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -527,10 +527,10 @@ Panel {
         anchors.left: true
         margins {
             left: root.pinnedX >= 0
-                ? root.clamp(root.pinnedX + root.dragDx, 0, Math.max(0, root.screenW - width))
+                ? root.clamp(root.pinnedX + root.dragDx, 0, Math.max(0, root.screenW - 192 * petScale - 20))
                 : Math.round(root.screenW / 2) - 96
             top: root.pinnedY >= 0
-                ? root.clamp(root.pinnedY + root.dragDy, 0, Math.max(0, root.screenH - height))
+                ? root.clamp(root.pinnedY + root.dragDy, 0, Math.max(0, root.screenH - 208 * petScale - 20))
                 : Math.round(root.screenH / 2) - 104
         }
     }
