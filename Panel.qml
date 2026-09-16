@@ -172,6 +172,21 @@ Panel {
             if (root.gravAnim.running) root.gravAnim.stop()
             root.gravWalkOffset = 0; root.gravDropOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
+        } else {
+            // Gravedad recién ACTIVADA: si está en el aire, EMPIEZA a caer AHORA MISMO (sin esperar soltar)
+            if (root.pinned && root.movable) {
+                if (root.walkAnim.running) root.walkAnim.stop()
+                root.gravDropOffset = 0; root.gravWalkOffset = 0
+                var cy = root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104
+                var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
+                if (cy < floorY) {
+                    root.gravLandX = root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96
+                    root.gravAnim.from = 0
+                    root.gravAnim.to = floorY - cy
+                    root.gravAnim.duration = Math.max(300, (floorY - cy) * 3)
+                    root.gravAnim.restart()
+                }
+            }
         }
     }
     function toggleHubEnabled() { hubEnabled = !hubEnabled; saveSetting("hubEnabled", hubEnabled) }
