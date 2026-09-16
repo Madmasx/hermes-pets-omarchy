@@ -90,7 +90,7 @@ Item {
   function drag(x, y) {
     var dx = x - pressX
     var dy = y - pressY
-    if (!dragMoved && Math.hypot(dx, dy) < 4) return
+    if (!dragMoved && Math.hypot(dx, dy) < 1) return
     dragMoved = true
     dragged(x - lastX, y - lastY)
     lastX = x
