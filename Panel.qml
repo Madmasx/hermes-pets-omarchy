@@ -148,7 +148,7 @@ Panel {
                 root.gravLandX = nx
                 gravAnim.from = 0
                 gravAnim.to = floorY - ny
-                gravAnim.duration = Math.max(300, (floorY - ny) * 3)
+                gravAnim.duration = Math.max(220, (floorY - ny) * 2)
                 gravAnim.restart()
                 return
             }
@@ -173,8 +173,8 @@ Panel {
             root.gravWalkOffset = 0; root.gravDropOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
         } else {
-            // Gravedad recién ACTIVADA: si está en el aire, EMPIEZA a caer AHORA MISMO (sin esperar soltar)
-            if (root.pinned && root.movable) {
+            // Gravedad recién ACTIVADA: cae SOLA AL INSTANTE (sin tocar; solo necesita estar anclado)
+            if (root.pinned) {
                 if (root.walkAnim.running) root.walkAnim.stop()
                 root.gravDropOffset = 0; root.gravWalkOffset = 0
                 var cy = root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104
@@ -183,7 +183,7 @@ Panel {
                     root.gravLandX = root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96
                     root.gravAnim.from = 0
                     root.gravAnim.to = floorY - cy
-                    root.gravAnim.duration = Math.max(300, (floorY - cy) * 3)
+                    root.gravAnim.duration = Math.max(220, (floorY - cy) * 2)
                     root.gravAnim.restart()
                 }
             }
