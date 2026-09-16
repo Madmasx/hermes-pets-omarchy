@@ -77,7 +77,7 @@ Panel {
         duration: 700
         easing.type: Easing.InOutSine
         onRunningChanged: if (!running) {
-            root.pinnedX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.gravWalkOffset, 0, Math.max(0, root.screenW - 192 * petScale - 20)))
+            if (root.gravityEnabled) root.pinnedX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.gravWalkOffset, 0, Math.max(0, root.screenW - 192 * petScale - 20)))
             root.saveSetting("pinnedX", root.pinnedX)
             root.gravWalkOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
@@ -164,7 +164,14 @@ Panel {
     }
 
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
-    function toggleGravity() { gravityEnabled = !gravityEnabled; saveSetting("gravityEnabled", gravityEnabled) }
+    function toggleGravity() { gravityEnabled = !gravityEnabled; saveSetting("gravityEnabled", gravityEnabled)
+        if (!gravityEnabled) {
+            if (root.walkAnim.running) root.walkAnim.stop()
+            if (root.gravAnim.running) root.gravAnim.stop()
+            root.gravWalkOffset = 0; root.gravDropOffset = 0
+            if (root.petSprite) root.petSprite.pose = "idle"
+        }
+    }
     function toggleHubEnabled() { hubEnabled = !hubEnabled; saveSetting("hubEnabled", hubEnabled) }
     function toggleActivity() { activityEnabled = !activityEnabled; saveSetting("activityEnabled", activityEnabled) }
 
