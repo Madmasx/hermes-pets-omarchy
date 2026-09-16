@@ -68,6 +68,14 @@ Panel {
     }
     property real gravFall: 0
     property real gravWalkOffset: 0
+    property real gravVel: 0
+
+    Timer {
+        id: gravLoop
+        interval: 16
+        repeat: true
+        onTriggered: root.gravTick()
+    }
     property int gravLandX: -1
 
     NumberAnimation {
@@ -166,26 +174,39 @@ Panel {
     }
 
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
+    function gravTick() {
+        if (!root.gravityEnabled || !root.pinned) { root.gravLoop.stop(); return }
+        var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
+        var cy = (root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104) + root.gravDropOffset
+        if (cy >= floorY) {
+            var fx = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
+            root.saveSetting("pinnedX", fx)
+            root.saveSetting("pinnedY", floorY)
+            root.gravDropOffset = 0; root.gravDropOffset = 0
+            if (root.petSprite) root.petSprite.pose = "idle"
+            root.gravLoop.stop()
+            return
+        }
+        root.gravVel += 34
+        root.gravDropOffset += root.gravVel
+        if (root.gravDropOffset > floorY - cy) root.gravDropOffset = floorY - cy
+    }
+
     function toggleGravity() { gravityEnabled = !gravityEnabled; saveSetting("gravityEnabled", gravityEnabled)
         if (!gravityEnabled) {
             if (root.walkAnim.running) root.walkAnim.stop()
             if (root.gravAnim.running) root.gravAnim.stop()
+            if (root.gravLoop.running) root.gravLoop.stop()
+            root.gravVel = 0
             root.gravWalkOffset = 0; root.gravDropOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
         } else {
-            // Gravedad recién ACTIVADA: cae SOLA AL INSTANTE (sin tocar; solo necesita estar anclado)
+            // Gravedad ACTIVADA: física CONTINUA e INMEDIATA — cae sola sin tocar el pet
             if (root.pinned) {
                 if (root.walkAnim.running) root.walkAnim.stop()
+                root.gravVel = 0
                 root.gravDropOffset = 0; root.gravWalkOffset = 0
-                var cy = root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104
-                var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
-                if (cy < floorY) {
-                    root.gravLandX = root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96
-                    root.gravAnim.from = 0
-                    root.gravAnim.to = floorY - cy
-                    root.gravAnim.duration = Math.max(220, (floorY - cy) * 2)
-                    root.gravAnim.restart()
-                }
+                root.gravLoop.restart()
             }
         }
     }
