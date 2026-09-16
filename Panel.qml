@@ -51,12 +51,13 @@ Panel {
         duration: 320
         easing.type: Easing.InQuad
         onRunningChanged: if (!running) {
-            // aterrizó: notificar al hub el descenso real (nx guardado, ny = suelo)
-            if (root.hubEnabled && root.bar && typeof root.bar.run === "function") {
-                var floorY = Math.round(Math.max(0, root.screenH - (208 * petScale + 20)))
-                root.bar.run(root.hubCommand("move", root.saveSetting("pinnedX", root.saveSetting("pinnedX", 0)), floorY))
-            }
-            var lanX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx, 0, Math.max(0, root.screenW - 192 * petScale - 20)))
+            // aterrizó: COMPROMISO con la X REAL desde donde soltaste (gravLandX, nunca centro)
+            var floorY = Math.round(Math.max(0, root.screenH - (208 * petScale + 20)))
+            var lanX = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
+            root.saveSetting("pinnedX", lanX)
+            root.saveSetting("pinnedY", floorY)
+            if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
+                root.bar.run(root.hubCommand("move", lanX, floorY))
             var walk = Math.round(lanX - (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96))
             if (walk !== 0) {
                 if (root.petSprite) root.petSprite.pose = "running"
@@ -67,6 +68,7 @@ Panel {
     }
     property real gravFall: 0
     property real gravWalkOffset: 0
+    property int gravLandX: -1
 
     NumberAnimation {
         id: walkAnim
@@ -143,6 +145,7 @@ Panel {
             // GRAVEDAD: si lo dejaste en el aire, cae solo (acelerando) hasta el suelo
             var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
             if (ny < floorY) {
+                root.gravLandX = nx
                 gravAnim.from = 0
                 gravAnim.to = floorY - ny
                 gravAnim.duration = Math.max(300, (floorY - ny) * 3)
