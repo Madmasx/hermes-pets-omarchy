@@ -56,7 +56,6 @@ Panel {
                 var floorY = Math.round(Math.max(0, root.screenH - (208 * petScale + 20)))
                 root.bar.run(root.hubCommand("move", root.saveSetting("pinnedX", root.saveSetting("pinnedX", 0)), floorY))
             }
-            root.gravityEnabled = false; root.saveSetting("gravityEnabled", false)
             var lanX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx, 0, Math.max(0, root.screenW - 192 * petScale - 20)))
             var walk = Math.round(lanX - (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96))
             if (walk !== 0) {
