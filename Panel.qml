@@ -32,6 +32,7 @@ Panel {
     property bool activityEnabled: root.setting("activityEnabled", false) === true
     property bool movable: root.setting("movable", true) === true
     property bool hubEnabled: root.setting("hubEnabled", true) === true
+    property bool gravityEnabled: root.setting("gravityEnabled", true) === true
     property real petScale: (root.setting("petScale", 0.75) || 1.0)
 
     readonly property real screenW: Quickshell.screen ? Quickshell.screen.width : 1920
@@ -41,6 +42,47 @@ Panel {
 
     property int dragDx: 0
     property int dragDy: 0
+    property real gravDropOffset: 0
+
+    NumberAnimation {
+        id: gravAnim
+        target: root
+        property: "gravDropOffset"
+        duration: 320
+        easing.type: Easing.InQuad
+        onRunningChanged: if (!running) {
+            // aterrizó: notificar al hub el descenso real (nx guardado, ny = suelo)
+            if (root.hubEnabled && root.bar && typeof root.bar.run === "function") {
+                var floorY = Math.round(Math.max(0, root.screenH - (208 * petScale + 20)))
+                root.bar.run(root.hubCommand("move", root.saveSetting("pinnedX", root.saveSetting("pinnedX", 0)), floorY))
+            }
+            root.gravityEnabled = false; root.saveSetting("gravityEnabled", false)
+            var lanX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx, 0, Math.max(0, root.screenW - 192 * petScale - 20)))
+            var walk = Math.round(lanX - (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96))
+            if (walk !== 0) {
+                if (root.petSprite) root.petSprite.pose = "running"
+                root.walkAnim.to = walk
+                root.walkAnim.restart()
+            } else if (root.petSprite) root.petSprite.pose = "idle"
+        }
+    }
+    property real gravFall: 0
+    property real gravWalkOffset: 0
+
+    NumberAnimation {
+        id: walkAnim
+        target: root
+        property: "gravWalkOffset"
+        from: 0.0
+        duration: 700
+        easing.type: Easing.InOutSine
+        onRunningChanged: if (!running) {
+            root.pinnedX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.gravWalkOffset, 0, Math.max(0, root.screenW - 192 * petScale - 20)))
+            root.saveSetting("pinnedX", root.pinnedX)
+            root.gravWalkOffset = 0
+            if (root.petSprite) root.petSprite.pose = "idle"
+        }
+    }
 
     readonly property var currentPet: {
         if (!petId) return null
@@ -98,6 +140,17 @@ Panel {
         var my = root.pinnedY >= 0 ? root.pinnedY + totalY : Math.round(root.screenH / 2) - 104
         var nx = Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20))))
         var ny = Math.round(root.clamp(my, 0, Math.max(0, root.screenH - (208 * petScale + 20))))
+        if (root.gravityEnabled) {
+            // GRAVEDAD: si lo dejaste en el aire, cae solo (acelerando) hasta el suelo
+            var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
+            if (ny < floorY) {
+                gravAnim.from = 0
+                gravAnim.to = floorY - ny
+                gravAnim.duration = Math.max(300, (floorY - ny) * 3)
+                gravAnim.restart()
+                return
+            }
+        }
         saveSetting("pinnedX", nx)
         saveSetting("pinnedY", ny)
         if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
@@ -111,6 +164,7 @@ Panel {
     }
 
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
+    function toggleGravity() { gravityEnabled = !gravityEnabled; saveSetting("gravityEnabled", gravityEnabled) }
     function toggleHubEnabled() { hubEnabled = !hubEnabled; saveSetting("hubEnabled", hubEnabled) }
     function toggleActivity() { activityEnabled = !activityEnabled; saveSetting("activityEnabled", activityEnabled) }
 
@@ -267,6 +321,13 @@ Panel {
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlGravity.width - Style.space(10); text: "Gravedad (al soltar cae al suelo)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlGravity; spacing: Style.space(4)
+                        ToggleSwitch { checked: gravityEnabled; onToggled: root.toggleGravity() }
+                    }
+                }
+
+                Row { width: parent.width; spacing: Style.space(10)
                     Text { width: parent.width - ctrlActivity.width - Style.space(10); text: "Reaccionar a actividad"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlActivity; spacing: Style.space(4)
                         ToggleSwitch { checked: activityEnabled; onToggled: root.toggleActivity() }
@@ -359,10 +420,10 @@ Panel {
         anchors.left: true
         margins {
             left: root.clamp(
-                (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx,
+                (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx + root.gravWalkOffset,
                 0, Math.max(0, root.screenW - 192 * petScale - 20))
             top: root.clamp(
-                (root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104) + root.dragDy,
+                (root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104) + root.dragDy + root.gravDropOffset,
                 0, Math.max(0, root.screenH - 208 * petScale - 20))
         }
     }
