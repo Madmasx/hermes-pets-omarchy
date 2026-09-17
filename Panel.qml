@@ -116,8 +116,8 @@ Panel {
     readonly property color barForeground: bar ? bar.foreground : Style.textPrimary
 
     onOpenedChanged: { if (opened) library.rescan() }
-    Component.onCompleted: { console.log("hermes-pets: onCompleted pinned=" + root.pinned + " gravity=" + root.gravityEnabled + " screenH=" + root.screenH); if (root.pinned && root.gravityEnabled) gravLoop.start() }
-    onPinnedChanged: { console.log("hermes-pets: pinned CHANGED a " + root.pinned + " (gravity=" + root.gravityEnabled + ")"); if (pinned) root.controller.hide(); if (root.pinned && root.gravityEnabled && root.petSprite) root.resyncScreen() }
+    Component.onCompleted: if (root.pinned && root.gravityEnabled) gravLoop.start()
+    onPinnedChanged: { if (pinned) root.controller.hide(); if (root.pinned && root.gravityEnabled && root.petSprite) root.resyncScreen() }
     onPetIdChanged: if (pinned && petId !== "" && library.pets.length > 0 && !root.currentPet) root.saveSetting("pinned", false)
 
     function toggle() {
