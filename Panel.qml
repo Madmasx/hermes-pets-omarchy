@@ -289,7 +289,6 @@ Panel {
             anchors.margins: Style.space(4)
             spacing: Style.space(7)
 
-            Component.onCompleted: console.log("[PANELDBG] contentIH=" + content.implicitHeight + " holderH=" + (content.parent ? Math.round(content.parent.height) : -1) + " inset=" + panel.verticalContentInset + " cardH=" + panel.contentHeight)
             PanelHero {
                 width: parent.width
                 title: "Hermes Pets"
