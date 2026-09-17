@@ -118,7 +118,7 @@ Panel {
     onOpenedChanged: { if (opened) library.rescan() }
     Component.onCompleted: { console.log("hermes-pets: onCompleted pinned=" + root.pinned + " gravity=" + root.gravityEnabled + " screenH=" + root.screenH); if (root.pinned && root.gravityEnabled) gravLoop.start() }
     onPinnedChanged: { console.log("hermes-pets: pinned CHANGED a " + root.pinned + " (gravity=" + root.gravityEnabled + ")"); if (pinned) root.controller.hide(); if (root.pinned && root.gravityEnabled && root.petSprite) root.resyncScreen() }
-    onPetIdChanged: if (pinned && petId !== "" && !root.currentPet) root.saveSetting("pinned", false)
+    onPetIdChanged: if (pinned && petId !== "" && library.pets.length > 0 && !root.currentPet) root.saveSetting("pinned", false)
 
     function toggle() {
         if (pinned || !opened) open()
@@ -477,7 +477,6 @@ Panel {
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         onScreenChanged: { if (root.pinned) root.resyncScreen() }
-        onImplicitHeightChanged: console.log("hermes-pets: winH=" + implicitHeight + " winW=" + implicitWidth + " screenH=" + (screen ? screen.height : -1) + " scale=" + petScale)
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
 
