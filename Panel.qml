@@ -25,7 +25,7 @@ Panel {
 
     readonly property string petId: String(root.setting("petId", ""))
     readonly property bool smoothScaling: root.setting("smooth", true) === true
-    readonly property bool animate: root.setting("animate", true) === true
+    property bool animate: root.setting("animate", true) === true
     readonly property bool randomBehavior: root.setting("randomBehavior", true) === true
     readonly property bool pinned: root.setting("pinned", false) === true
     readonly property int pinnedX: root.setting("pinnedX", -1)
@@ -230,6 +230,7 @@ Panel {
     }
     function toggleHubEnabled() { hubEnabled = !hubEnabled; saveSetting("hubEnabled", hubEnabled) }
     function toggleActivity() { activityEnabled = !activityEnabled; saveSetting("activityEnabled", activityEnabled) }
+    function toggleAnimate() { animate = !animate; saveSetting("animate", animate) }
 
     function setScale(val) {
         petScale = Math.max(0.25, Math.min(3.0, val))
@@ -501,7 +502,7 @@ Panel {
                 Row { width: parent.width; spacing: Style.space(10)
                     Text { width: parent.width - ctrlAnim.width - Style.space(10); text: "Animación"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlAnim; spacing: Style.space(4)
-                        ToggleSwitch { checked: animate; onToggled: saveSetting("animate", checked) }
+                        ToggleSwitch { checked: animate; onToggled: root.toggleAnimate() }
                     }
                 }
             }
