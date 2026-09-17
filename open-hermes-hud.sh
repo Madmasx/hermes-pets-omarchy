@@ -2,11 +2,11 @@
 # Coloca y ABRE/CIERRA (toggle real) el HUD de Hermes Desktop junto a la mascota.
 # Uso: bash open-hermes-hud.sh petGX petGY petW petH screenW screenH [mode]
 #   mode=open (default): toggle real on/off:
-#       click 1 → abre el Hub junto al pet.
-#       click 2 → CIERRA el Hub Y la ventana principal que la app restaura
-#                 (→ nada de Hermes visible; el pet queda oculto también).
+#       click 1 → abre el HUD junto al pet; la ventana principal de Hermes se
+#                 oculta al scratchpad para que SOLO el HUD quede visible.
+#       click 2 → cierra el HUD y la ventana principal (nada de Hermes visible).
 #       click 3 → vuelve a abrir todo.   [alterna con cada click]
-#   mode=move (tras arrastrar el pet): solo reposiciona el Hub si YA estaba
+#   mode=move (tras arrastrar el pet): solo reposiciona el HUD si YA estaba
 #       abierto; no abre si estaba cerrado y no toca la ventana principal.
 set -u
 
@@ -27,29 +27,40 @@ focus_win() {
 close_win() {
   [ -n "$1" ] && hyprctl dispatch 'hl.dsp.window.close()' >/dev/null 2>&1
 }
+# Envía la ventana principal de Hermes al scratchpad: solo el HUD queda visible.
+hide_main() {
+  local m h
+  m=$(main_addr)
+  [ -z "$m" ] && return 0
+  h=$(hud_addr)
+  focus_win "$m"
+  sleep 0.2
+  hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:n:scratchpad", follow = false })' >/dev/null 2>&1
+  # Devuelve el foco al HUD cuando el move no lo conserva.
+  [ -n "$h" ] && focus_win "$h"
+}
 
-# --- Toggle OFF (Hub ya abierto) -------------------------------------------
-# Cierra el Hub y —si vienes de un click (no de arrastrar)— Cierra TAMBIÉN la
-# ventana principal que la app restaura al salir del HUD: nada queda visible.
+# --- Toggle OFF (HUD ya abierto) -------------------------------------------
+# Cierra el HUD y —si vienes de un click (no de arrastrar)— también la ventana
+# principal que la app restaura al salir del HUD: nada queda visible.
 h=$(hud_addr)
 if [ -n "$h" ]; then
   focus_win "$h"; sleep 0.3
   close_win "$h"
-  sleep 1.5
   if [ "$MODE" = "move" ]; then
-    # Solo reposicionar (tras arrastrar): reabre en el nuevo costado y listo.
-    :
+    # Solo reposicionar (tras arrastrar): deja que la app suelte el HUD y reabre.
+    sleep 1.0
   else
+    sleep 0.5
     m=$(main_addr)
     if [ -n "$m" ]; then
       focus_win "$m"; sleep 0.3
       close_win "$m"
-      sleep 1.0
     fi
     exit 0
   fi
 else
-  # No abrir en modo "move" si el Hub estaba cerrado (tras arrastrar el pet).
+  # No abrir en modo "move" si el HUD estaba cerrado (tras arrastrar el pet).
   [ "$MODE" = "move" ] && exit 0
 fi
 
@@ -82,10 +93,10 @@ sleep 1
 for attempt in 1 2 3 4 5; do
   focus_win "$addr"
   sleep 4
-  [ -n "$(hud_addr)" ] && exit 0
+  [ -n "$(hud_addr)" ] && { hide_main; exit 0; }
   wtype -M ctrl -M shift -k h -m shift -m ctrl >/dev/null 2>&1
   for i in $(seq 1 8); do
-    [ -n "$(hud_addr)" ] && exit 0
+    [ -n "$(hud_addr)" ] && { hide_main; exit 0; }
     sleep 0.5
   done
 done
