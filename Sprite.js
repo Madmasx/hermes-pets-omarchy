@@ -28,6 +28,13 @@ var ACTIVITY_POSES = {
   waiting: { row: 6, durations: [150, 150, 150, 150, 150, 260] }    // blocked on user (clarify/approval)
 }
 
+// Locomotion rows for roaming (directional running), standard petdex taxonomy:
+// row 1 running-right, row 2 running-left. Used while the pet walks on screen.
+var LOCOMOTION = {
+  "running-right": { row: 1, durations: [120, 120, 120, 120, 120, 220] },
+  "running-left":  { row: 2, durations: [120, 120, 120, 120, 120, 220] }
+}
+
 // Random behaviour pool, played ACTION_LOOPS times.
 var ACTIONS = ["waving", "jumping", "waiting", "running"]
 var ACTION_LOOPS = 2

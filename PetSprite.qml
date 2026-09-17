@@ -30,9 +30,16 @@ Item {
   // Acepta tanto nombres propios del sprite (running/waving/jumping/waiting) como
   // los canónicos de Hermes que escribe activity-state.json (run/review/wave/jump/failed).
   function poseDef(name) {
-    return Sprite.POSES[name] || Sprite.ACTIVITY_POSES[name] || Sprite.POSES.idle
+    return Sprite.POSES[name] || Sprite.ACTIVITY_POSES[name] || Sprite.LOCOMOTION[name] || Sprite.POSES.idle
   }
   readonly property var durations: poseDef(pose).durations
+  readonly property int loopMs: {
+    var d = durations
+    var total = 0
+    for (var i = 0; i < d.length; i++) total += d[i]
+    return total > 0 ? total : 820
+  }
+  readonly property bool hasLocomotion: rows >= 3
   readonly property var cell: looking ? look
     : (neutralBeat ? { row: 0, frame: Sprite.NEUTRAL_FRAME } : { row: poseDef(pose).row, frame: frame })
   property url loggedSheet

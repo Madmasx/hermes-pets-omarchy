@@ -72,10 +72,10 @@ Panel {
                 root.bar.run(root.hubCommand("move", lanX, floorY))
             var walk = Math.round(lanX - (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96))
             if (walk !== 0) {
-                if (root.petSprite) root.petSprite.pose = "running"
+                if (sprite) sprite.pose = "running"
                 walkAnim.to = walk
                 walkAnim.restart()
-            } else if (root.petSprite) root.petSprite.pose = "idle"
+            } else if (sprite) sprite.pose = "idle"
         }
     }
     property real gravFall: 0
@@ -102,8 +102,89 @@ Panel {
             if (root.gravityEnabled) root.pinnedX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.gravWalkOffset, 0, Math.max(0, root.screenW - 192 * petScale)))
             root.saveSetting("pinnedX", root.pinnedX)
             root.gravWalkOffset = 0
-            if (root.petSprite) root.petSprite.pose = "idle"
+            if (sprite) sprite.pose = "idle"
         }
+    }
+
+    // --- Roaming estilo Hermes: pausa y camina por el borde inferior ---
+    // Pausa 8-20s, elige una X aleatoria y camina hacia ella con las filas
+    // direccionales (running-right/left). Solo cuando el agente esta en reposo.
+    property real roamOffset: 0
+    property bool roamWalking: false
+    property real roamTargetLeft: 0
+    property real roamPauseUntil: 0
+
+    function roamBaseLeft() {
+        return root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96
+    }
+    function roamMaxLeft() { return Math.max(0, root.screenW - 192 * petScale) }
+    function roamAllowed() {
+        return root.pinned && root.animate && root.randomBehavior && root.currentPet !== null
+            && !root.grabbing && !gravLoop.running && !gravAnim.running && !walkAnim.running
+            && (!root.activityEnabled || root.activityPose === "idle")
+    }
+    function roamPause() {
+        root.roamWalking = false
+        if (sprite) { sprite.beginIdle(); if (sprite.ticking) sprite.arm() }
+        root.roamPauseUntil = Date.now() + 8000 + Math.random() * 12000
+    }
+    function roamCommit() {
+        var nx = Math.round(root.clamp(root.roamBaseLeft() + root.roamOffset, 0, root.roamMaxLeft()))
+        root.roamOffset = 0
+        if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
+            root.bar.run(root.hubCommand("move", nx, root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104))
+        root.saveSetting("pinnedX", nx)
+    }
+    function roamPlan() {
+        var maxLeft = root.roamMaxLeft()
+        var cur = root.clamp(root.roamBaseLeft() + root.roamOffset, 0, maxLeft)
+        var target = Math.round(Math.random() * maxLeft)
+        if (Math.abs(target - cur) < 12) { root.roamPause(); return }
+        var delta = target - cur
+        root.roamWalking = true
+        root.roamTargetLeft = target
+        if (sprite) {
+            var pose = "running"
+            if (sprite.hasLocomotion) pose = delta > 0 ? "running-right" : "running-left"
+            sprite.beginAction(pose, 9999)
+            if (sprite.ticking) sprite.arm()
+        }
+    }
+    function roamStep() {
+        if (!roamAllowed()) {
+            if (root.roamWalking) { root.roamWalking = false; if (sprite) sprite.beginIdle() }
+            if (root.roamOffset !== 0) root.roamCommit()
+            root.roamPauseUntil = 0
+            if (root.activityEnabled) root.applyActivityPose()
+            return
+        }
+        if (root.roamWalking) {
+            var petW = 192 * petScale
+            var loopMs = sprite ? sprite.loopMs : 820
+            var speed = Math.max(20, (petW * 0.8) / Math.max(0.1, loopMs / 1000))
+            var cur = root.roamBaseLeft() + root.roamOffset
+            var remaining = root.roamTargetLeft - cur
+            var stepDist = speed * (roamLoop.interval / 1000)
+            if (Math.abs(remaining) <= Math.max(1.5, stepDist)) {
+                root.roamOffset += remaining
+                root.roamWalking = false
+                root.roamCommit()
+                root.roamPause()
+            } else {
+                root.roamOffset += (remaining > 0 ? 1 : -1) * stepDist
+            }
+            return
+        }
+        if (root.roamPauseUntil === 0) { root.roamPause(); return }
+        if (Date.now() >= root.roamPauseUntil) root.roamPlan()
+    }
+
+    Timer {
+        id: roamLoop
+        interval: root.roamWalking ? 16 : 250
+        repeat: true
+        running: root.pinned
+        onTriggered: root.roamStep()
     }
 
     readonly property var currentPet: {
@@ -118,7 +199,7 @@ Panel {
 
     onOpenedChanged: { if (opened) library.rescan() }
     Component.onCompleted: if (root.pinned && root.gravityEnabled) gravLoop.start()
-    onPinnedChanged: { if (pinned) root.controller.hide(); if (root.pinned && root.gravityEnabled && root.petSprite) root.resyncScreen() }
+    onPinnedChanged: { if (pinned) root.controller.hide(); if (root.pinned && root.gravityEnabled && sprite) root.resyncScreen() }
     onPetIdChanged: if (pinned && petId !== "" && library.pets.length > 0 && !root.currentPet) root.saveSetting("pinned", false)
 
     function toggle() {
@@ -201,7 +282,7 @@ Panel {
             root.saveSetting("pinnedX", fx)
             root.saveSetting("pinnedY", floorY)
             root.gravDropOffset = 0
-            if (root.petSprite) root.petSprite.pose = "idle"
+            if (sprite) sprite.pose = "idle"
             gravLoop.stop()
             return
         }
@@ -217,7 +298,7 @@ Panel {
             if (gravLoop.running) gravLoop.stop()
             root.gravVel = 0
             root.gravWalkOffset = 0; root.gravDropOffset = 0
-            if (root.petSprite) root.petSprite.pose = "idle"
+            if (sprite) sprite.pose = "idle"
         } else {
             // Gravedad ACTIVADA: física CONTINUA e INMEDIATA — cae sola sin tocar el pet
             if (root.pinned) {
@@ -333,6 +414,7 @@ Panel {
 
     function applyActivityPose() {
         if (!sprite) return
+        if (root.roamWalking) return
         var pose = root.activityPose || "idle"
         if (pose === "idle") { root.resetActivityPose(); return }
         var sustained = root.sustainedActivityPoses.indexOf(pose) >= 0
@@ -706,7 +788,7 @@ Panel {
         anchors.left: true
         margins {
             left: root.clamp(
-                (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx + root.gravWalkOffset,
+                (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx + root.gravWalkOffset + root.roamOffset,
                 0, Math.max(0, root.screenW - 192 * petScale))
             top: root.clamp(
                 (root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104) + root.dragDy + root.gravDropOffset,

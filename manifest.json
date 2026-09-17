@@ -80,7 +80,7 @@
         "key": "randomBehavior",
         "type": "boolean",
         "label": "Random behaviour",
-        "description": "Play a random move every 8-20 seconds.",
+        "description": "Roam: pause 8-20s, then walk to a random spot along the floor.",
         "defaultValue": true
       },
       {

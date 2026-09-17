@@ -71,9 +71,24 @@ omarchy bar set madmasx.hermes-pets smooth false --json
 | `pinned` | bool | `false` | Dejar el pet en el escritorio |
 | `pinnedX` | int | `-1` | Borde izquierdo del pet pinned en píxeles de pantalla; `-1` = bajo su icono de barra. El arrastre lo setea |
 | `pinnedY` | int | `-1` | Borde superior; misma regla |
-| `randomBehavior` | bool | `true` | Reproducir un movimiento aleatorio cada 8-20 s |
+| `randomBehavior` | bool | `true` | Roaming: pausa 8-20 s y camina por el borde inferior hacia una X aleatoria (filas `running-right`/`running-left`). Off = se queda quieto |
 | `animate` | bool | `true` | Apagado muestra un frame quieto y no corre el timer |
 | `activityEnabled` | bool | `false` | Cuando está on, el pet cambia de pose leyendo `~/.hermes/pets/activity-state.json` (ver abajo) |
+
+## Roaming (randomBehavior)
+
+Inspirado en `apps/desktop/src/components/pet/use-pet-roam.ts` de Hermes: el
+pet deambula en vez de quedarse clavado. Un loop decide un destino aleatorio
+en la pantalla, camina hacia él con la fila direccional correspondiente
+(`running-right`/`running-left`, o `running` en espejo si el atlas no las
+trae) y vuelve a pausar 8-20 s. La velocidad se deriva de la duración del loop
+de la animación (una longitud de cuerpo por loop) para que los pasos se lean
+como pasos y no como un deslizamiento. Al terminar cada tramo se persiste la X
+en `pinnedX`.
+
+Se detiene mientras arrastrás el pet, mientras cae por gravedad, y mientras el
+agente Hermes está activo (`run`/`review`/`waiting`), como en Hermes, que solo
+deambula con el agente en reposo.
 
 ## Espejo de actividad de Hermes (activityEnabled)
 
