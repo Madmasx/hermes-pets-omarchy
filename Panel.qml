@@ -69,6 +69,7 @@ Panel {
     property real gravFall: 0
     property real gravWalkOffset: 0
     property real gravVel: 0
+    property bool grabbing: false
 
     Timer {
         id: gravLoop
@@ -135,6 +136,8 @@ Panel {
 
     function dragPet(dx, dy) {
         if (!pinned || !movable) return
+        root.grabbing = true
+        if (root.gravLoop.running) root.gravLoop.stop()
         dragDx += dx
         dragDy += dy
     }
@@ -149,18 +152,22 @@ Panel {
         var my = root.pinnedY >= 0 ? root.pinnedY + totalY : Math.round(root.screenH / 2) - 104
         var nx = Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20))))
         var ny = Math.round(root.clamp(my, 0, Math.max(0, root.screenH - (208 * petScale + 20))))
+        root.grabbing = false
+        root.saveSetting("pinnedX", nx)
+        root.saveSetting("pinnedY", ny)
         if (root.gravityEnabled) {
-            // GRAVEDAD: si lo dejaste en el aire, cae solo (acelerando) hasta el suelo
+            // GRAVEDAD ON: si quedó en el aire, REANUDAR la física continua desde aquí
             var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
             if (ny < floorY) {
                 root.gravLandX = nx
-                gravAnim.from = 0
-                gravAnim.to = floorY - ny
-                gravAnim.duration = Math.max(220, (floorY - ny) * 2)
-                gravAnim.restart()
+                root.gravVel = 0
+                root.gravDropOffset = 0
+                root.gravLoop.restart()
                 return
             }
         }
+        if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
+            root.bar.run(root.hubCommand("move", nx, ny))
         saveSetting("pinnedX", nx)
         saveSetting("pinnedY", ny)
         if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
@@ -175,6 +182,7 @@ Panel {
 
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
     function gravTick() {
+        if (root.grabbing) return
         if (!root.gravityEnabled || !root.pinned) { root.gravLoop.stop(); return }
         var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
         var cy = (root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104) + root.gravDropOffset
