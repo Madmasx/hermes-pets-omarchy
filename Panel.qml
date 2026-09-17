@@ -193,21 +193,21 @@ Panel {
         if (root.grabbing) return
         if (!root.gravityEnabled || !root.pinned) { gravLoop.stop(); return }
         var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(104 * (petScale + 1) + 6))))
-        var cy = (root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104) + root.gravDropOffset
+        var base = root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104
+        var cy = base + root.gravDropOffset
         if (cy >= floorY) {
-            console.log("hermes-pets: ATERRIZA screenH=" + root.screenH + " screenW=" + root.screenW + " scale=" + petScale + " floorY=" + floorY + " cy=" + cy + " pinnedY_prev=" + root.pinnedY + " dragDy=" + root.dragDy + " dropOff=" + root.gravDropOffset)
+            console.log("hermes-pets: ATERRIZA floorY=" + floorY + " cy=" + cy + " screenH=" + root.screenH + " screenW=" + root.screenW + " base=" + base)
             var fx = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
             root.saveSetting("pinnedX", fx)
             root.saveSetting("pinnedY", floorY)
-            root.gravDropOffset = 0; root.gravDropOffset = 0
+            root.gravDropOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
             gravLoop.stop()
             return
         }
-        if (root.gravDropOffset < 20 || root.gravDropOffset > floorY - cy - 20) console.log("hermes-pets: TICK cy=" + Math.round(cy) + " floorY=" + floorY + " off=" + Math.round(root.gravDropOffset) + " vel=" + root.gravVel)
         root.gravVel = Math.min(root.gravVel + 6, 18)
         root.gravDropOffset += root.gravVel
-        if (root.gravDropOffset > floorY - cy) root.gravDropOffset = floorY - cy
+        if (base + root.gravDropOffset > floorY) root.gravDropOffset = floorY - base
     }
 
     function toggleGravity() { gravityEnabled = !gravityEnabled; saveSetting("gravityEnabled", gravityEnabled)
