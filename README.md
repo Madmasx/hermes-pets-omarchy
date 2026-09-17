@@ -30,13 +30,8 @@ adaptado para leer los pets de Hermes en lugar de los de Codex.
 ## Instalar
 
 ```sh
-omarchy plugin add /home/madmasx/Disco/proyectos/hermes-pets-omarchy --enable
-```
-
-O desde el repo una vez publicado:
-
-```sh
-omarchy plugin add https://github.com/tu-usuario/hermes-pets-omarchy.git --enable
+git clone https://github.com/TU_USUARIO/hermes-pets-omarchy.git
+omarchy plugin add ./hermes-pets-omarchy --enable
 ```
 
 El botón de la barra mostrará el primer frame del pet activo; sin pets
@@ -150,8 +145,8 @@ El panel mantiene compatibilidad con los nombres de sprite del atlas
 ## Desarrollar
 
 ```sh
-# Validar estructura
-omarchy plugin validate /home/madmasx/Disco/proyectos/hermes-pets-omarchy
+# Validar estructura (desde la raíz del repo)
+omarchy plugin validate .
 
 # Lint QML (si qmllint está disponible)
 /usr/lib/qt6/bin/qmllint -I "$(omarchy shell path)/shell" *.qml
@@ -180,9 +175,10 @@ Esto borra la carpeta del plugin (con backup). La línea de ajustes en
 
 - Origen de los pets: `~/.hermes/pets/` en lugar de `~/.codex/pets/`.
 - Nombre del namespace / layer: `hermes-pets` en lugar de `omarchy-pets`.
-- Pose `thinking` / `error` / `done` añadidos para encajar con estados del
-  agente Hermes (Redis mapeados a filas del atlas en `Sprite.js`).
-- El hook de actividad está esbozado pero no conectado todavía (ver arriba).
+- El pet puede reflejar la actividad del agente Hermes (poses canónicas
+  `idle`, `run`, `review`, `wave`, `jump`, `failed`, `waiting`) según un
+  plugin de Hermes que publica el estado y este plugin que lo consume; ver
+  [Espejo de actividad de Hermes](#espejo-de-actividad-de-hermes-activityenabled).
 
 ## Créditos
 
