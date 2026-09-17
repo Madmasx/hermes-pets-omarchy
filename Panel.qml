@@ -61,8 +61,8 @@ Panel {
             var walk = Math.round(lanX - (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96))
             if (walk !== 0) {
                 if (root.petSprite) root.petSprite.pose = "running"
-                root.walkAnim.to = walk
-                root.walkAnim.restart()
+                walkAnim.to = walk
+                walkAnim.restart()
             } else if (root.petSprite) root.petSprite.pose = "idle"
         }
     }
@@ -137,7 +137,7 @@ Panel {
     function dragPet(dx, dy) {
         if (!pinned || !movable) return
         root.grabbing = true
-        if (root.gravLoop.running) root.gravLoop.stop()
+        if (gravLoop.running) gravLoop.stop()
         dragDx += dx
         dragDy += dy
     }
@@ -162,7 +162,7 @@ Panel {
                 root.gravLandX = nx
                 root.gravVel = 0
                 root.gravDropOffset = 0
-                root.gravLoop.restart()
+                gravLoop.restart()
                 return
             }
         }
@@ -183,7 +183,7 @@ Panel {
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
     function gravTick() {
         if (root.grabbing) return
-        if (!root.gravityEnabled || !root.pinned) { root.gravLoop.stop(); return }
+        if (!root.gravityEnabled || !root.pinned) { gravLoop.stop(); return }
         var floorY = Math.max(0, Math.round(root.screenH - (208 * petScale + 20)))
         var cy = (root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104) + root.gravDropOffset
         if (cy >= floorY) {
@@ -192,7 +192,7 @@ Panel {
             root.saveSetting("pinnedY", floorY)
             root.gravDropOffset = 0; root.gravDropOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
-            root.gravLoop.stop()
+            gravLoop.stop()
             return
         }
         root.gravVel += 34
@@ -202,19 +202,19 @@ Panel {
 
     function toggleGravity() { gravityEnabled = !gravityEnabled; saveSetting("gravityEnabled", gravityEnabled)
         if (!gravityEnabled) {
-            if (root.walkAnim.running) root.walkAnim.stop()
-            if (root.gravAnim.running) root.gravAnim.stop()
-            if (root.gravLoop.running) root.gravLoop.stop()
+            if (walkAnim.running) walkAnim.stop()
+            if (gravAnim.running) gravAnim.stop()
+            if (gravLoop.running) gravLoop.stop()
             root.gravVel = 0
             root.gravWalkOffset = 0; root.gravDropOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
         } else {
             // Gravedad ACTIVADA: física CONTINUA e INMEDIATA — cae sola sin tocar el pet
             if (root.pinned) {
-                if (root.walkAnim.running) root.walkAnim.stop()
+                if (walkAnim.running) walkAnim.stop()
                 root.gravVel = 0
                 root.gravDropOffset = 0; root.gravWalkOffset = 0
-                root.gravLoop.restart()
+                gravLoop.restart()
             }
         }
     }
