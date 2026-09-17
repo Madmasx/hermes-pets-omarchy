@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
@@ -235,15 +236,46 @@ Panel {
         saveSetting("petScale", petScale)
     }
 
+    // Borra la mascota actual del disco (hermes pets remove), sin pasar por Hermes.
     function removePet() {
         if (!petId) return
-        saveSetting("petId", "")
-        library.rescan()
-        if (!pinned) root.toggle()
+        removeProc.command = [root.hermesBin, "pets", "remove", petId]
+        removeProc.running = true
     }
 
-    function installPet() { Quickshell.openUrl("https://petdex.dev") }
-    function installPetByName(name) { Quickshell.openUrl("https://petdex.dev/pet/" + encodeURIComponent(name)) }
+    function openCatalog() {
+        root.catalogOpen = true
+        if (root.catalogAll.length === 0 && !catalogFetch.running) {
+            root.catalogStatus = "Cargando catálogo…"
+            catalogFetch.running = true
+        }
+    }
+
+    function installCatalogPet(slug) {
+        if (!slug || root.catalogInstalling !== "") return
+        root.catalogInstalling = slug
+        installProc.command = [root.hermesBin, "pets", "install", slug]
+        installProc.running = true
+    }
+
+    function filterCatalog(query, all) {
+        if (!all || all.length === 0) return []
+        var q = String(query || "").trim().toLowerCase()
+        var out = []
+        var cap = q === "" ? 60 : 200
+        for (var i = 0; i < all.length && out.length < cap; i++) {
+            var e = all[i]
+            if (q === "" || e.slug.toLowerCase().indexOf(q) >= 0 || (e.displayName || "").toLowerCase().indexOf(q) >= 0)
+                out.push(e)
+        }
+        return out
+    }
+
+    function isInstalled(slug) {
+        var p = library.pets
+        for (var i = 0; i < p.length; i++) if (p[i].name === slug) return true
+        return false
+    }
 
     readonly property string activityFile: home + "/.hermes/pets/activity-state.json"
 
@@ -271,6 +303,68 @@ Panel {
     }
 
     PetLibrary { id: library; active: root.hostWidget !== null; petsDir: root.petsDir }
+
+    readonly property string hermesBin: home + "/.local/bin/hermes"
+    property bool catalogOpen: false
+    property var catalogAll: []
+    property string catalogStatus: "Pulsa + para cargar el catálogo"
+    property string catalogInstalling: ""
+
+    QtObject { id: catalogOwner; function close() { root.catalogOpen = false } }
+
+    Process {
+        id: catalogFetch
+        command: ["curl", "-sSL", "--max-time", "30", "-H", "User-Agent: hermes-agent-petdex", "https://petdex.dev/api/manifest"]
+        stdout: StdioCollector { id: catalogOut; waitForEnd: true }
+        stderr: StdioCollector { id: catalogErr; waitForEnd: true }
+        onExited: function(code, status) {
+            if (code !== 0) { root.catalogStatus = "No se pudo cargar el catálogo (curl " + code + ")"; return }
+            try {
+                var data = JSON.parse(catalogOut.text)
+                var arr = (data && data.pets) ? data.pets : []
+                var out = []
+                for (var i = 0; i < arr.length; i++) {
+                    var e = arr[i]
+                    if (!e || !e.slug || !e.spritesheetUrl) continue
+                    out.push({ slug: e.slug, displayName: e.displayName || e.slug, kind: e.kind || "", sheetUrl: e.spritesheetUrl })
+                }
+                root.catalogAll = out
+                root.catalogStatus = out.length + " mascotas disponibles"
+            } catch (err) {
+                root.catalogStatus = "Error al leer el catálogo: " + err
+            }
+        }
+    }
+
+    Process {
+        id: installProc
+        stdout: StdioCollector { id: installOut; waitForEnd: true }
+        stderr: StdioCollector { id: installErr; waitForEnd: true }
+        onExited: function(code, status) {
+            var slug = root.catalogInstalling
+            root.catalogInstalling = ""
+            if (code === 0) {
+                if (slug) root.saveSetting("petId", slug)
+                library.rescan()
+            } else {
+                console.warn("hermes-pets: install failed (" + code + "): " + installErr.text.trim())
+            }
+        }
+    }
+
+    Process {
+        id: removeProc
+        stdout: StdioCollector { id: removeOut; waitForEnd: true }
+        stderr: StdioCollector { id: removeErr; waitForEnd: true }
+        onExited: function(code, status) {
+            if (code === 0) {
+                root.saveSetting("petId", "")
+                library.rescan()
+            } else {
+                console.warn("hermes-pets: remove failed (" + code + "): " + removeErr.text.trim())
+            }
+        }
+    }
 
     // --- Panel popup ---
     KeyboardPanel {
@@ -324,7 +418,7 @@ Panel {
             Text {
                 id: noPetsText
                 width: parent.width
-                text: "No hay mascotas instaladas\n\nInstala una con:\nhermes pets install <slug>"
+                text: "No hay mascotas instaladas\n\nPulsa el botón  +  para abrir el catálogo petdex."
                 color: root.barForeground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
@@ -349,15 +443,15 @@ Panel {
                     id: removePetBtn
                     visible: root.petId !== ""
                     iconText: "\uf014"
-                    tooltipText: "Quitar mascota actual"
+                    tooltipText: "Eliminar mascota actual (borra del disco)"
                     foreground: root.barForeground; fontFamily: root.fontFamily
                     onClicked: root.removePet()
                 }
                 PanelActionButton {
                     iconText: "\uf067"
-                    tooltipText: "Instalar nueva mascota"
+                    tooltipText: "Instalar mascota (catálogo petdex)"
                     foreground: root.barForeground; fontFamily: root.fontFamily
-                    onClicked: root.installPet()
+                    onClicked: root.openCatalog()
                 }
             }
 
@@ -422,6 +516,76 @@ Panel {
                 Text { width: parent.width; text: "Estado: " + (root.activityEnabled ? root.activityPose : "idle (sin monitoreo)"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
                 Text { width: parent.width; text: root.pinned ? ("Fijado" + (root.movable ? " (movible)" : " (fijo)")) : "Panel de barra"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
                 Text { width: parent.width; text: root.hubEnabled ? "Click en la mascota: abre el Hub junto al pet" : "Click en la mascota: no hace nada (Hub desactivado)"; color: "#6c63ff"; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.8 }
+            }
+        }
+    }
+
+    // --- Popup independiente: catálogo petdex ---
+    KeyboardPanel {
+        id: catalog
+        anchorItem: root.anchorItem
+        bar: root.bar
+        owner: catalogOwner
+        open: root.catalogOpen
+        padding: Style.space(14)
+        contentWidth: catalog.fittedContentWidth(460)
+        contentHeight: catalog.fittedContentHeight(catalogCol.implicitHeight + Style.space(8))
+        focusTarget: searchField
+        onOpenChanged: if (!open && searchField) searchField.text = ""
+
+        Column {
+            id: catalogCol
+            anchors.fill: parent
+            anchors.margins: Style.space(4)
+            spacing: Style.space(6)
+
+            PanelHero {
+                width: parent.width
+                title: "Catálogo petdex"
+                meta: root.catalogStatus
+                foreground: root.barForeground
+                fontFamily: root.fontFamily
+            }
+
+            PanelSeparator { foreground: root.barForeground }
+
+            TextField {
+                id: searchField
+                width: parent.width
+                placeholderText: "Buscar por nombre o slug…"
+                foreground: root.barForeground
+                Keys.onEscapePressed: root.catalogOpen = false
+            }
+
+            ListView {
+                id: catalogList
+                width: parent.width
+                height: Style.space(340)
+                clip: true
+                spacing: Style.space(2)
+                boundsBehavior: Flickable.StopAtBounds
+                model: root.filterCatalog(searchField.text, root.catalogAll)
+                delegate: CatalogRow {
+                    fontFamily: root.fontFamily
+                    smoothScaling: root.smoothScaling
+                    foreground: root.barForeground
+                    installed: root.isInstalled(modelData.slug)
+                    busy: root.catalogInstalling === modelData.slug
+                    onClicked: root.installCatalogPet(modelData.slug)
+                }
+
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            }
+
+            Text {
+                width: parent.width
+                visible: catalogList.count === 0
+                text: root.catalogAll.length === 0 ? root.catalogStatus : "Sin resultados para «" + searchField.text + "»"
+                color: root.barForeground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                opacity: 0.6
+                wrapMode: Text.WordWrap
             }
         }
     }
