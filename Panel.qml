@@ -281,7 +281,7 @@ Panel {
         open: root.opened
         padding: Style.space(14)
         contentWidth: panel.fittedContentWidth(400)
-        contentHeight: content.implicitHeight
+        contentHeight: panel.fittedContentHeight(content.implicitHeight + Style.space(8))
 
         Column {
             id: content
@@ -289,6 +289,7 @@ Panel {
             anchors.margins: Style.space(4)
             spacing: Style.space(7)
 
+            Component.onCompleted: console.log("[PANELDBG] contentIH=" + content.implicitHeight + " holderH=" + (content.parent ? Math.round(content.parent.height) : -1) + " inset=" + panel.verticalContentInset + " cardH=" + panel.contentHeight)
             PanelHero {
                 width: parent.width
                 title: "Hermes Pets"
