@@ -35,8 +35,19 @@ Panel {
     property bool gravityEnabled: root.setting("gravityEnabled", true) === true
     property real petScale: (root.setting("petScale", 0.75) || 1.0)
 
-    readonly property real screenW: Quickshell.screen ? Quickshell.screen.width : 1920
-    readonly property real screenH: Quickshell.screen ? Quickshell.screen.height : 1080
+    readonly property real screenW: root.pinned && pinnedWindow && pinnedWindow.screen ? pinnedWindow.screen.width : (Quickshell.screen ? Quickshell.screen.width : 1920)
+    readonly property real screenH: root.pinned && pinnedWindow && pinnedWindow.screen ? pinnedWindow.screen.height : (Quickshell.screen ? Quickshell.screen.height : 1080)
+
+    function resyncScreen() {
+        // Detecta cambio de monitor/resolución de la pantalla donde vive el pet:
+        // si la gravedad está activa, relanza la caída para caer lo mismo hasta el nuevo fondo;
+        // el pet_NUNCA_ queda descolgado: gravTick recalcula floorY con la screenH nueva cada tick.
+        if (root.pinned && root.gravityEnabled) {
+            if (gravLoop.running) { gravLoop.stop(); gravLoop.start() }
+            else if (!root.grabbing) gravLoop.start()
+        }
+        root.saveSetting("pinnedY", root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104)
+    }
 
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
 
@@ -466,6 +477,7 @@ Panel {
         WlrLayershell.namespace: "hermes-pets"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        onScreenChanged: { if (root.pinned) root.resyncScreen() }
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
 
