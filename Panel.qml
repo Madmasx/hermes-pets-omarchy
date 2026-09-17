@@ -116,6 +116,7 @@ Panel {
     readonly property color barForeground: bar ? bar.foreground : Style.textPrimary
 
     onOpenedChanged: { if (opened) library.rescan() }
+    Component.onCompleted: { if (root.pinned && root.gravityEnabled) gravLoop.start() }
     onPinnedChanged: if (pinned) root.controller.hide()
     onPetIdChanged: if (pinned && petId !== "" && !root.currentPet) root.saveSetting("pinned", false)
 
@@ -198,6 +199,7 @@ Panel {
         var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(104 * (petScale + 1) + 6))))
         var cy = (root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104) + root.gravDropOffset
         if (cy >= floorY) {
+            console.log("hermes-pets: ATERRIZA screenH=" + root.screenH + " screenW=" + root.screenW + " scale=" + petScale + " floorY=" + floorY + " cy=" + cy + " pinnedY_prev=" + root.pinnedY + " dragDy=" + root.dragDy + " dropOff=" + root.gravDropOffset)
             var fx = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
             root.saveSetting("pinnedX", fx)
             root.saveSetting("pinnedY", floorY)
@@ -478,6 +480,7 @@ Panel {
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         onScreenChanged: { if (root.pinned) root.resyncScreen() }
+        onImplicitHeightChanged: console.log("hermes-pets: winH=" + implicitHeight + " winW=" + implicitWidth + " screenH=" + (screen ? screen.height : -1) + " scale=" + petScale)
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
 
