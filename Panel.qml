@@ -116,7 +116,8 @@ Panel {
     readonly property color barForeground: bar ? bar.foreground : Style.textPrimary
 
     onOpenedChanged: { if (opened) library.rescan() }
-    Component.onCompleted: { if (root.pinned && root.gravityEnabled) gravLoop.start() }
+    Component.onCompleted: { console.log("hermes-pets: onCompleted pinned=" + root.pinned + " gravity=" + root.gravityEnabled + " screenH=" + root.screenH); if (root.pinned && root.gravityEnabled) gravLoop.start() }
+    onPinnedChanged: console.log("hermes-pets: pinned CHANGED a " + root.pinned + " (gravity=" + root.gravityEnabled + ")")
     onPinnedChanged: if (pinned) root.controller.hide()
     onPetIdChanged: if (pinned && petId !== "" && !root.currentPet) root.saveSetting("pinned", false)
 
@@ -208,6 +209,7 @@ Panel {
             gravLoop.stop()
             return
         }
+        if (root.gravDropOffset < 20 || root.gravDropOffset > floorY - cy - 20) console.log("hermes-pets: TICK cy=" + Math.round(cy) + " floorY=" + floorY + " off=" + Math.round(root.gravDropOffset) + " vel=" + root.gravVel)
         root.gravVel = Math.min(root.gravVel + 6, 18)
         root.gravDropOffset += root.gravVel
         if (root.gravDropOffset > floorY - cy) root.gravDropOffset = floorY - cy
