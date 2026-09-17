@@ -63,7 +63,7 @@ Panel {
         easing.type: Easing.InQuad
         onRunningChanged: if (!running) {
             // aterrizó: COMPROMISO con la X REAL desde donde soltaste (gravLandX, nunca centro)
-            var floorY = Math.round(Math.max(0, root.screenH - Math.round(104 * (petScale + 1) + 6)))
+            var floorY = Math.round(Math.max(0, root.screenH - Math.round(208 * petScale + 6)))
             var lanX = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
             root.saveSetting("pinnedX", lanX)
             root.saveSetting("pinnedY", floorY)
@@ -98,7 +98,7 @@ Panel {
         duration: 700
         easing.type: Easing.InOutSine
         onRunningChanged: if (!running) {
-            if (root.gravityEnabled) root.pinnedX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.gravWalkOffset, 0, Math.max(0, root.screenW - 192 * petScale - 20)))
+            if (root.gravityEnabled) root.pinnedX = Math.round(root.clamp((root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.gravWalkOffset, 0, Math.max(0, root.screenW - 192 * petScale)))
             root.saveSetting("pinnedX", root.pinnedX)
             root.gravWalkOffset = 0
             if (root.petSprite) root.petSprite.pose = "idle"
@@ -162,14 +162,14 @@ Panel {
         root.dragDy = 0
         var mx = root.pinnedX >= 0 ? root.pinnedX + totalX : Math.round(root.screenW / 2) - 96
         var my = root.pinnedY >= 0 ? root.pinnedY + totalY : Math.round(root.screenH / 2) - 104
-        var nx = Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20))))
-        var ny = Math.round(root.clamp(my, 0, Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(104 * (petScale + 1) + 6))))))
+        var nx = Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale))))
+        var ny = Math.round(root.clamp(my, 0, Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(208 * petScale + 6))))))
         root.grabbing = false
         root.saveSetting("pinnedX", nx)
         root.saveSetting("pinnedY", ny)
         if (root.gravityEnabled) {
             // GRAVEDAD ON: si quedó en el aire, REANUDAR la física continua desde aquí
-            var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(104 * (petScale + 1) + 6))))
+            var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(208 * petScale + 6))))
             if (ny < floorY) {
                 root.gravLandX = nx
                 root.gravVel = 0
@@ -192,7 +192,7 @@ Panel {
     function gravTick() {
         if (root.grabbing) return
         if (!root.gravityEnabled || !root.pinned) { gravLoop.stop(); return }
-        var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(104 * (petScale + 1) + 6))))
+        var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(208 * petScale + 6))))
         var base = root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104
         var cy = base + root.gravDropOffset
         if (cy >= floorY) {
@@ -445,6 +445,7 @@ Panel {
                 id: sprite
                 anchors.fill: parent
                 scale: petScale
+                transformOrigin: Item.TopLeft
                 sheetUrl: root.currentPet ? root.currentPet.sheetUrl : ""
                 smoothScaling: root.smoothScaling
                 running: root.pinned && root.animate && root.currentPet !== null
@@ -470,8 +471,8 @@ Panel {
     PanelWindow {
         id: pinnedWindow
         visible: root.pinned
-        implicitWidth: 192 * petScale + 20
-        implicitHeight: 208 * petScale + 20
+        implicitWidth: 192 * petScale
+        implicitHeight: 208 * petScale
         WlrLayershell.namespace: "hermes-pets"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -484,10 +485,10 @@ Panel {
         margins {
             left: root.clamp(
                 (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96) + root.dragDx + root.gravWalkOffset,
-                0, Math.max(0, root.screenW - 192 * petScale - 20))
+                0, Math.max(0, root.screenW - 192 * petScale))
             top: root.clamp(
                 (root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104) + root.dragDy + root.gravDropOffset,
-                0, Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(104 * (petScale + 1) + 6)))))
+                0, Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(208 * petScale + 6)))))
         }
     }
 }
