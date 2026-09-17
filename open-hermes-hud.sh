@@ -2,9 +2,9 @@
 # Coloca y ABRE/CIERRA (toggle real) el HUD de Hermes Desktop junto a la mascota.
 # Uso: bash open-hermes-hud.sh petGX petGY petW petH screenW screenH [mode]
 #   mode=open (default): toggle real on/off:
-#       click 1 → abre el HUD junto al pet; la ventana principal de Hermes se
-#                 oculta al scratchpad para que SOLO el HUD quede visible.
-#       click 2 → cierra el HUD y la ventana principal (nada de Hermes visible).
+#       click 1 → abre SOLO el HUD junto al pet: la ventana principal de Hermes
+#                 se oculta al instante en el workspace especial "hermes".
+#       click 2 → cierra la principal (invisible) y el HUD sin parpadeo.
 #       click 3 → vuelve a abrir todo.   [alterna con cada click]
 #   mode=move (tras arrastrar el pet): solo reposiciona el HUD si YA estaba
 #       abierto; no abre si estaba cerrado y no toca la ventana principal.
@@ -25,38 +25,32 @@ focus_win() {
   [ -n "$1" ] && hyprctl dispatch "hl.dsp.focus({ window = \"address:$1\" })" >/dev/null 2>&1
 }
 close_win() {
-  [ -n "$1" ] && hyprctl dispatch 'hl.dsp.window.close()' >/dev/null 2>&1
+  [ -n "$1" ] && hyprctl dispatch "hl.dsp.window.close({ window = \"address:$1\" })" >/dev/null 2>&1
 }
-# Envía la ventana principal de Hermes al scratchpad: solo el HUD queda visible.
+# Envía la ventana principal de Hermes al workspace especial "hermes" (oculto):
+# deja SOLO el HUD visible. Por dirección, sin tocar el foco.
 hide_main() {
-  local m h
+  local m
   m=$(main_addr)
   [ -z "$m" ] && return 0
-  h=$(hud_addr)
-  focus_win "$m"
-  sleep 0.2
-  hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:n:scratchpad", follow = false })' >/dev/null 2>&1
-  # Devuelve el foco al HUD cuando el move no lo conserva.
-  [ -n "$h" ] && focus_win "$h"
+  hyprctl dispatch "hl.dsp.window.move({ window = \"address:$m\", workspace = \"special:hermes\", follow = false })" >/dev/null 2>&1
 }
 
 # --- Toggle OFF (HUD ya abierto) -------------------------------------------
-# Cierra el HUD y —si vienes de un click (no de arrastrar)— también la ventana
-# principal que la app restaura al salir del HUD: nada queda visible.
+# Cierra primero la principal (está oculta en "special:hermes", invisible) y
+# después el HUD: la app al restaurar no tiene ventana que mostrar → nada
+# parpadea y no queda nada de Hermes visible.
 h=$(hud_addr)
 if [ -n "$h" ]; then
-  focus_win "$h"; sleep 0.3
-  close_win "$h"
   if [ "$MODE" = "move" ]; then
-    # Solo reposicionar (tras arrastrar): deja que la app suelte el HUD y reabre.
+    # Solo reposicionar (tras arrastrar): cierra el HUD y reabre en el nuevo
+    # costado; la principal sigue oculta en el workspace especial.
+    close_win "$h"
     sleep 1.0
   else
-    sleep 0.5
     m=$(main_addr)
-    if [ -n "$m" ]; then
-      focus_win "$m"; sleep 0.3
-      close_win "$m"
-    fi
+    [ -n "$m" ] && close_win "$m"
+    close_win "$h"
     exit 0
   fi
 else
