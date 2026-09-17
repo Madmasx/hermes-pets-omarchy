@@ -91,7 +91,14 @@ Item {
     var dx = x - pressX
     var dy = y - pressY
     if (!dragMoved && Math.hypot(dx, dy) < 1) return
-    dragMoved = true
+    if (!dragMoved) {
+      // primer movimiento: centrar el pet bajo el cursor (compensar el punto de agarre)
+      dragged(pressX - width / 2 + dx, pressY - height / 2 + dy)
+      lastX = x
+      lastY = y
+      dragMoved = true
+      return
+    }
     dragged(x - lastX, y - lastY)
     lastX = x
     lastY = y
