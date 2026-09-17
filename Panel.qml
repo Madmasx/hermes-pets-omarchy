@@ -117,8 +117,7 @@ Panel {
 
     onOpenedChanged: { if (opened) library.rescan() }
     Component.onCompleted: { console.log("hermes-pets: onCompleted pinned=" + root.pinned + " gravity=" + root.gravityEnabled + " screenH=" + root.screenH); if (root.pinned && root.gravityEnabled) gravLoop.start() }
-    onPinnedChanged: console.log("hermes-pets: pinned CHANGED a " + root.pinned + " (gravity=" + root.gravityEnabled + ")")
-    onPinnedChanged: if (pinned) root.controller.hide()
+    onPinnedChanged: { console.log("hermes-pets: pinned CHANGED a " + root.pinned + " (gravity=" + root.gravityEnabled + ")"); if (pinned) root.controller.hide(); if (root.pinned && root.gravityEnabled && root.petSprite) root.resyncScreen() }
     onPetIdChanged: if (pinned && petId !== "" && !root.currentPet) root.saveSetting("pinned", false)
 
     function toggle() {
@@ -179,10 +178,6 @@ Panel {
                 return
             }
         }
-        if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
-            root.bar.run(root.hubCommand("move", nx, ny))
-        saveSetting("pinnedX", nx)
-        saveSetting("pinnedY", ny)
         if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
             root.bar.run(root.hubCommand("move", nx, ny))
     }
