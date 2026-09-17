@@ -196,7 +196,6 @@ Panel {
         var base = root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104
         var cy = base + root.gravDropOffset
         if (cy >= floorY) {
-            console.log("hermes-pets: ATERRIZA floorY=" + floorY + " cy=" + cy + " screenH=" + root.screenH + " screenW=" + root.screenW + " base=" + base)
             var fx = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
             root.saveSetting("pinnedX", fx)
             root.saveSetting("pinnedY", floorY)
