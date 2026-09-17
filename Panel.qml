@@ -280,27 +280,84 @@ Panel {
 
     readonly property string activityFile: home + "/.hermes/pets/activity-state.json"
 
-    readonly property string activityPose: {
-        if (!activityEnabled || !activityFile) return "idle"
+    // Este runtime de Quickshell no expone Qt.readFile y FileView.text() devuelve
+    // contenido desfasado; leemos el archivo con cat (proceso + polling barato).
+    property string activityRaw: ""
+
+    // Beats de un solo pase: si el archivo quedó con uno viejo (p.ej. un proceso
+    // -z que terminó antes del TTL), el lector lo ignora en vez de re-reproducirlo.
+    readonly property var transientActivityPoses: ["jump", "wave", "failed"]
+
+    function parseActivity() {
+        if (!activityEnabled) return "idle"
+        var text = root.activityRaw
+        if (!text) return root.activityPose
         try {
-            var text = Qt.readFile(activityFile)
-            if (!text) return "idle"
             var data = JSON.parse(text)
-            if (data && typeof data.pose === "string") return data.pose
+            if (!data || typeof data.pose !== "string") return root.activityPose
+            if (root.transientActivityPoses.indexOf(data.pose) >= 0) {
+                var ts = Number(data.updated_at) || 0
+                if (ts > 0 && (Date.now() / 1000 - ts) > 3) return "idle"
+            }
+            return data.pose
         } catch (e) { }
-        return "idle"
+        // Lectura parcial ilegible: conserva la última pose conocida.
+        return root.activityPose
+    }
+    property string activityPose: "idle"
+
+    Process {
+        id: activityReader
+        command: ["cat", root.activityFile]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.activityRaw = text
+                root.activityPose = root.parseActivity()
+                root.applyActivityPose()
+            }
+        }
+    }
+
+    // run/review/waiting se mantienen mientras Hermes siga en ese estado;
+    // wave/jump/failed son reacciones de un solo pase.
+    property string activityActivePose: "idle"
+    readonly property var sustainedActivityPoses: ["run", "review", "waiting"]
+
+    function resetActivityPose() {
+        root.activityActivePose = "idle"
+        if (sprite && sprite.pose !== "idle") {
+            sprite.beginIdle()
+            if (sprite.ticking) sprite.arm()
+        }
+    }
+
+    function applyActivityPose() {
+        if (!sprite) return
+        var pose = root.activityPose || "idle"
+        if (pose === "idle") { root.resetActivityPose(); return }
+        var sustained = root.sustainedActivityPoses.indexOf(pose) >= 0
+        if (pose !== root.activityActivePose || (sustained && sprite.pose === "idle")) {
+            root.activityActivePose = pose
+            sprite.beginAction(pose, sustained ? 9999 : 1)
+            if (sprite.ticking) sprite.arm()
+        }
     }
 
     Timer {
         id: activityTimer
-        interval: 800
+        interval: 700
         repeat: true
         running: root.activityEnabled && root.currentPet !== null
         onTriggered: {
-            var pose = root.activityPose
-            if (sprite && pose && pose !== "idle" && sprite.pose !== pose)
-                sprite.beginAction(pose, 1)
+            if (!sprite) return
+            if (!activityReader.running) activityReader.running = true
+            root.applyActivityPose()
         }
+    }
+
+    onActivityEnabledChanged: {
+        if (activityEnabled) activityReader.running = true
+        else root.resetActivityPose()
     }
 
     PetLibrary { id: library; active: root.hostWidget !== null; petsDir: root.petsDir }

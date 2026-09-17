@@ -73,41 +73,55 @@ omarchy bar set madmasx.hermes-pets smooth false --json
 | `pinnedY` | int | `-1` | Borde superior; misma regla |
 | `randomBehavior` | bool | `true` | Reproducir un movimiento aleatorio cada 8-20 s |
 | `animate` | bool | `true` | Apagado muestra un frame quieto y no corre el timer |
-| `activityEnabled` | bool | `false` | Cuando está on, el pet cambia de pose según el estado del agente Hermes. Requiere el hook activity (ver abajo) |
+| `activityEnabled` | bool | `false` | Cuando está on, el pet cambia de pose leyendo `~/.hermes/pets/activity-state.json` (ver abajo) |
 
-## Hooks de actividad de Hermes (activityEnabled)
+## Espejo de actividad de Hermes (activityEnabled)
 
-Cuando `activityEnabled` es `true`, el pet debe enterarse cuando Hermes está
-pensando, corriendo una herramienta, fallando, o terminando. La forma más
-simple hoy es un archivo de estado que un proceso auxiliar escribe y el plugin
-lee periódicamente:
+Cuando `activityEnabled` es `true`, el pet refleja en vivo lo que hace el
+agente Hermes. El estado del pet de Hermes (`agent.pet.state.derive_pet_state`)
+se calcula en proceso y **no se persiste**, así que lo escribe a disco un
+plugin de Hermes y lo lee este plugin de Omarchy.
 
-1. El plugin lee `~/.hermes/pets/activity-state.json` (ruta parametrizable)
-   periódicamente y cuando el valor cambia, llama a `sprite.beginAction(pose)`.
-2. Escribir el estado desde fuera: un pequeño script, un hook de Hermes, o un
-   launcher que escuche el bus de Hermes (gateway events / WebSocket) y escriba
-   el JSON. El formato mínimo:
+### 1. Plugin de Hermes (productor)
+
+El plugin de Hermes se suscribe a los hooks del ciclo de vida
+(`pre/post_llm_call`, `pre/post_api_request`, `api_request_error`,
+`pre/post_tool_call`, `pre/post_approval_response`, `pre_verify`,
+`agent_loop_stopped`, `subagent_stop`, `on_session_start/end/finalize`),
+deriva la pose canónica con `derive_pet_state` y escribe de forma atómica:
 
 ```json
-{ "pose": "thinking" }
+{ "pose": "run", "state": "run", "surface": "cli",
+  "session_id": "20260916_194912_3c1ef4", "updated_at": 1789609759.39 }
 ```
 
-Valores de `pose` que el sprite entiende por defecto:
-`idle`, `thinking`, `running`, `error`, `done`, `waving`, `jumping`, `waiting`.
+Su fuente versionada vive en [`hermes-plugin/`](hermes-plugin/) de este repo.
+Instalarlo y habilitarlo (una sola vez):
 
-Tareas pendientes para tener el hook completo:
-- Decidir el canal de事件: leer un archivo (polling) o suscribirse a los
-  eventos del gateway de Hermes vía WebSocket.
-- Escribir el listener (bash/python) que traduce los eventos de Hermes a
-  `activity-state.json`.
-- Exponer un toggle en el panel que conecte/desconecte el listener.
-- Campo en `manifest.json` `barWidget.settings.schema` para el modo de hook
-  (`file` | `websocket` | `off`).
+```sh
+mkdir -p ~/.hermes/plugins/pet-activity
+cp hermes-plugin/__init__.py hermes-plugin/plugin.yaml ~/.hermes/plugins/pet-activity/
+hermes plugins enable pet-activity
+hermes plugins doctor pet-activity   # verifica los hooks registrados
+```
 
-Hoy el toggle `activityEnabled` existe en el panel pero el sprite no lee el
-archivo automáticamente — hay que wirear la lectura en `PetSprite.qml` o en
-`Panel.qml` con un Timer que pole el archivo y llame a `beginAction`. Este es
-el bloque principal para la siguiente iteración.
+### 2. Lector en Omarchy (consumidor)
+
+Este runtime de Quickshell **no expone `Qt.readFile`**, y `FileView.text()`
+devuelve contenido desfasado respecto de `onFileChanged`; por eso el panel lee
+el archivo con un `Process` (`cat`) cada 700 ms mientras `activityEnabled` esté
+on, y aplica `sprite.beginAction(pose)` cuando la pose cambia.
+
+Vocabulario canónico (enum `PetState` de Hermes):
+`idle`, `run`, `review`, `wave`, `jump`, `failed`, `waiting`.
+
+- `run`, `review`, `waiting` se **sostienen** mientras Hermes siga en ese estado.
+- `wave`, `jump`, `failed` son beats de un solo pase; el panel también ignora
+  beats transitorios con `updated_at` de más de 3 s (p. ej. si un proceso
+  `hermes -z` terminó antes del TTL y dejó el archivo en `jump`).
+
+El panel mantiene compatibilidad con los nombres de sprite del atlas
+(`idle`, `waving`, `jumping`, `waiting`, `running`) además de los canónicos.
 
 ## Qué toca
 

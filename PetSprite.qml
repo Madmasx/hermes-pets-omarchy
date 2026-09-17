@@ -27,9 +27,14 @@ Item {
   readonly property bool lookEnabled: rows >= Sprite.LOOK_ROWS
   readonly property bool looking: running && lookEnabled && hovering && pose === "idle"
   readonly property bool ticking: running && !looking
-  readonly property var durations: Sprite.POSES[pose].durations
+  // Acepta tanto nombres propios del sprite (running/waving/jumping/waiting) como
+  // los canónicos de Hermes que escribe activity-state.json (run/review/wave/jump/failed).
+  function poseDef(name) {
+    return Sprite.POSES[name] || Sprite.ACTIVITY_POSES[name] || Sprite.POSES.idle
+  }
+  readonly property var durations: poseDef(pose).durations
   readonly property var cell: looking ? look
-    : (neutralBeat ? { row: 0, frame: Sprite.NEUTRAL_FRAME } : { row: Sprite.POSES[pose].row, frame: frame })
+    : (neutralBeat ? { row: 0, frame: Sprite.NEUTRAL_FRAME } : { row: poseDef(pose).row, frame: frame })
   property url loggedSheet
 
   signal dragged(real dx, real dy)
