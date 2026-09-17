@@ -195,7 +195,7 @@ Panel {
             gravLoop.stop()
             return
         }
-        root.gravVel += 34
+        root.gravVel = Math.min(root.gravVel + 6, 18)
         root.gravDropOffset += root.gravVel
         if (root.gravDropOffset > floorY - cy) root.gravDropOffset = floorY - cy
     }
