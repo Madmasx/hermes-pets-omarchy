@@ -52,7 +52,7 @@ Panel {
         easing.type: Easing.InQuad
         onRunningChanged: if (!running) {
             // aterrizó: COMPROMISO con la X REAL desde donde soltaste (gravLandX, nunca centro)
-            var floorY = Math.round(Math.max(0, root.screenH - root.screenH * 0.03 - (208 * petScale + 20)))
+            var floorY = Math.round(Math.max(0, root.screenH - 208 * petScale - 4))
             var lanX = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
             root.saveSetting("pinnedX", lanX)
             root.saveSetting("pinnedY", floorY)
@@ -151,13 +151,13 @@ Panel {
         var mx = root.pinnedX >= 0 ? root.pinnedX + totalX : Math.round(root.screenW / 2) - 96
         var my = root.pinnedY >= 0 ? root.pinnedY + totalY : Math.round(root.screenH / 2) - 104
         var nx = Math.round(root.clamp(mx, 0, Math.max(0, root.screenW - (192 * petScale + 20))))
-        var ny = Math.round(root.clamp(my, 0, Math.max(0, Math.round(Math.max(0, root.screenH - root.screenH * 0.03 - (208 * petScale + 20))))))
+        var ny = Math.round(root.clamp(my, 0, Math.max(0, Math.round(Math.max(0, root.screenH - 208 * petScale - 4)))))
         root.grabbing = false
         root.saveSetting("pinnedX", nx)
         root.saveSetting("pinnedY", ny)
         if (root.gravityEnabled) {
             // GRAVEDAD ON: si quedó en el aire, REANUDAR la física continua desde aquí
-            var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - root.screenH * 0.03 - (208 * petScale + 20))))
+            var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - 208 * petScale - 4)))
             if (ny < floorY) {
                 root.gravLandX = nx
                 root.gravVel = 0
@@ -184,7 +184,7 @@ Panel {
     function gravTick() {
         if (root.grabbing) return
         if (!root.gravityEnabled || !root.pinned) { gravLoop.stop(); return }
-        var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - root.screenH * 0.03 - (208 * petScale + 20))))
+        var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - 208 * petScale - 4)))
         var cy = (root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104) + root.gravDropOffset
         if (cy >= floorY) {
             var fx = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
@@ -477,7 +477,7 @@ Panel {
                 0, Math.max(0, root.screenW - 192 * petScale - 20))
             top: root.clamp(
                 (root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104) + root.dragDy + root.gravDropOffset,
-                0, Math.max(0, Math.round(Math.max(0, root.screenH - root.screenH * 0.03 - (208 * petScale + 20)))))
+                0, Math.max(0, Math.round(Math.max(0, root.screenH - 208 * petScale - 4))))
         }
     }
 }
