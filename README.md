@@ -30,7 +30,7 @@ adaptado para leer los pets de Hermes en lugar de los de Codex.
 ## Instalar
 
 ```sh
-git clone https://github.com/TU_USUARIO/hermes-pets-omarchy.git
+git clone https://github.com/Madmasx/hermes-pets-omarchy.git
 omarchy plugin add ./hermes-pets-omarchy --enable
 ```
 
