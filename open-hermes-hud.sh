@@ -2,13 +2,29 @@
 # Coloca y ABRE/CIERRA (toggle real) el HUD de Hermes Desktop junto a la mascota.
 # Uso: bash open-hermes-hud.sh petGX petGY petW petH screenW screenH [mode]
 #   mode=open (default): toggle real on/off:
-#       click 1 → abre SOLO el HUD junto al pet: la ventana principal de Hermes
-#                 se oculta al instante en el workspace especial "hermes".
-#       click 2 → cierra la principal (invisible) y el HUD sin parpadeo.
-#       click 3 → vuelve a abrir todo.   [alterna con cada click]
+#       click 1 → entra en HUD mode: la app abre SOLO el HUD (la principal la
+#                 oculta ella misma y flota/pega el HUD como overlay).
+#       click 2 → sale de HUD mode con el atajo de la app y cierra la principal:
+#                 nada de Hermes queda visible y NO se tocan otras ventanas.
 #   mode=move (tras arrastrar el pet): solo reposiciona el HUD si YA estaba
-#       abierto; no abre si estaba cerrado y no toca la ventana principal.
+#       abierto; si estaba cerrado no abre y no toca la ventana principal.
 set -u
+
+# Guard anticlicks dobles: una sola operación a la vez. PIDfile autocurable —
+# si el dueño desapareció o caducó (>60s) se descarta solo (los flock se volvían
+# eternos porque el daemon de `hermes desktop` heredaba el fd y lo dejaba vivo).
+LOCK="${TMPDIR:-/tmp}/hermes-hud.lock"
+mkdir -p "$(dirname "$LOCK")"
+if [ -f "$LOCK" ]; then
+  lock_pid=$(cat "$LOCK" 2>/dev/null || "")
+  lock_age=$(( $(date +%s) - $(stat -c %Y "$LOCK" 2>/dev/null || echo 0) ))
+  if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null && [ "$lock_age" -lt 60 ]; then
+    exit 0   # otra operación de toggle está en curso
+  fi
+  rm -f "$LOCK"
+fi
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
 
 PET_GX="${1:-960}"; PET_GY="${2:-540}"; PET_W="${3:-192}"; PET_H="${4:-208}"
 SCR_W="${5:-1920}"; SCR_H="${6:-1080}"; MODE="${7:-open}"
@@ -27,30 +43,53 @@ focus_win() {
 close_win() {
   [ -n "$1" ] && hyprctl dispatch "hl.dsp.window.close({ window = \"address:$1\" })" >/dev/null 2>&1
 }
-# Envía la ventana principal de Hermes al workspace especial "hermes" (oculto):
-# deja SOLO el HUD visible. Por dirección, sin tocar el foco.
-hide_main() {
-  local m
-  m=$(main_addr)
-  [ -z "$m" ] && return 0
-  hyprctl dispatch "hl.dsp.window.move({ window = \"address:$m\", workspace = \"special:hermes\", follow = false })" >/dev/null 2>&1
+# El propio atajo de la app (view.toggleHud = mod+shift+h): entra/sale de HUD.
+send_toggle() {
+  wtype -M ctrl -M shift -k h -m shift -m ctrl >/dev/null 2>&1
+}
+# wait_hud want[1=presente|0=ausente]: sondea hasta 10s en pasos de 0.5s.
+wait_hud() {
+  local want="$1" attempts="${2:-20}" i
+  for i in $(seq 1 "$attempts"); do
+    if [ "$want" = "1" ] && [ -n "$(hud_addr)" ]; then return 0; fi
+    if [ "$want" = "0" ] && [ -z "$(hud_addr)" ]; then return 0; fi
+    sleep 0.5
+  done
+  return 1
 }
 
 # --- Toggle OFF (HUD ya abierto) -------------------------------------------
-# Cierra primero la principal (está oculta en "special:hermes", invisible) y
-# después el HUD: la app al restaurar no tiene ventana que mostrar → nada
-# parpadea y no queda nada de Hermes visible.
-h=$(hud_addr)
+# Margen de mapeo: si el HUD está arriba (aunque esté recién mapeándose) es un
+# toggle OFF. Sin este margen un segundo click que cae mientras se abre toma el
+# camino OPEN, no encuentra la principal (la app la oculta) y no hace nada.
+h=""
+for i in 1 2 3 4 5; do
+  h=$(hud_addr)
+  [ -n "$h" ] && break
+  sleep 0.4
+done
+
 if [ -n "$h" ]; then
   if [ "$MODE" = "move" ]; then
     # Solo reposicionar (tras arrastrar): cierra el HUD y reabre en el nuevo
-    # costado; la principal sigue oculta en el workspace especial.
-    close_win "$h"
+    # costado; deja que la app suelte el HUD antes de reabrir.
+    focus_win "$h"; sleep 0.3
+    send_toggle
+    wait_hud 0
     sleep 1.0
   else
-    m=$(main_addr)
+    focus_win "$h"; sleep 0.3
+    send_toggle
+    wait_hud 0
+    # La app restaura la principal justo al salir de HUD: espero que aparezca
+    # y la cierro por dirección para que no quede nada visible.
+    m=""
+    for i in 1 2 3 4 5 6; do
+      m=$(main_addr)
+      [ -n "$m" ] && break
+      sleep 0.5
+    done
     [ -n "$m" ] && close_win "$m"
-    close_win "$h"
     exit 0
   fi
 else
@@ -77,22 +116,21 @@ addr=""
 for i in $(seq 1 60); do
   addr=$(main_addr)
   [ -n "$addr" ] && break
+  [ -n "$(hud_addr)" ] && exit 0   # ya en HUD (la app tiene la principal oculta)
   sleep 0.5
 done
 [ -z "$addr" ] && exit 1
 
-focus_win "$addr"
-sleep 1
-
-for attempt in 1 2 3 4 5; do
+# --- Entra en HUD mode: enfocar la principal y enviar el atajo de la app.
+# Un solo atajo por intento con ventana amplia (10s): si el HUD no aparece, el
+# atajo se perdió (app aún arrancando) y se reintenta SOLO si sigue ausente —
+# reenviar a ciegas apagaría un HUD que acaba de abrirse.
+for attempt in 1 2 3; do
   focus_win "$addr"
   sleep 4
-  [ -n "$(hud_addr)" ] && { hide_main; exit 0; }
-  wtype -M ctrl -M shift -k h -m shift -m ctrl >/dev/null 2>&1
-  for i in $(seq 1 8); do
-    [ -n "$(hud_addr)" ] && { hide_main; exit 0; }
-    sleep 0.5
-  done
+  [ -n "$(hud_addr)" ] && exit 0     # ya en HUD (la app oculta la principal)
+  send_toggle
+  if wait_hud 1 20; then exit 0; fi
 done
 
 exit 0
