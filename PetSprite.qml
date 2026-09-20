@@ -46,7 +46,7 @@ Item {
 
   signal dragged(real dx, real dy)
   signal dropped()
-  signal hudClicked()
+  signal clicked()
 
   implicitWidth: 192
   implicitHeight: 208
@@ -120,7 +120,7 @@ Item {
     if (dragMoved) dropped()
     else {
       wave()
-      hudClicked()
+      clicked()
     }
   }
 

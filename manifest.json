@@ -25,7 +25,8 @@
       "pinnedY": -1,
       "randomBehavior": true,
       "animate": true,
-      "activityEnabled": false
+      "activityEnabled": false,
+      "launchOnClick": true
     },
     "schema": [
       {
@@ -98,17 +99,17 @@
         "defaultValue": false
       },
       {
-        "key": "hudModeEnabled",
-        "type": "boolean",
-        "label": "Show HUD on click",
-        "description": "Show a floating HUD with agent state when clicking the pet.",
-        "defaultValue": true
-      },
-      {
         "key": "movable",
         "type": "boolean",
         "label": "Movable pet",
         "description": "Allow dragging the pet when pinned to desktop.",
+        "defaultValue": true
+      },
+      {
+        "key": "launchOnClick",
+        "type": "boolean",
+        "label": "Open Desktop on click",
+        "description": "When on, clicking the pet opens Hermes Desktop.",
         "defaultValue": true
       },
       {

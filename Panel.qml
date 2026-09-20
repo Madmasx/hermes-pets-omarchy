@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
+import "PinGate.js" as PinGate
 
 Panel {
     id: root
@@ -32,9 +33,53 @@ Panel {
     readonly property int pinnedY: root.setting("pinnedY", -1)
     property bool activityEnabled: root.setting("activityEnabled", false) === true
     property bool movable: root.setting("movable", true) === true
-    property bool hubEnabled: root.setting("hubEnabled", true) === true
+    property bool launchOnClick: root.setting("launchOnClick", true) === true
     property bool gravityEnabled: root.setting("gravityEnabled", true) === true
     property real petScale: (root.setting("petScale", 0.75) || 1.0)
+
+// --- Pet único por escritorio -----------------------------------------
+    // El bar quickshell crea una instancia del widget por monitor (Bar.qml:
+    // "a widget that appears once in the layout is still live once per screen"),
+    // asi que con varias pantallas hay varias mascotas vivas y cada una pineaba
+    // su ventana -> pet duplicado. Todas las instancias comparten el MISMO
+    // engine QML, asi que PinGate (singleton .pragma library) decide que una
+    // sola instancia tenga la ventana pinned (owner); las demas conservan su
+    // icono en su bar y el ajuste compartido, pero sin ventana, ni roaming, ni
+    // gravedad. Si el owner suelta, la siguiente releva.
+    readonly property string pinToken: PinGate.nextId()
+    property bool pinEligible: false
+    readonly property bool shownPinned: root.pinned && root.pinEligible
+
+    function syncPinEligible() {
+        if (root.pinned) root.pinEligible = PinGate.claim(root.pinToken)
+        else if (PinGate.release(root.pinToken)) root.pinEligible = false
+    }
+    // El onCompleted de este root no llega a ejecutarse en el arranque limpio
+    // (lo detectamos con los logs de diagnostico), asi que el reclamo/impulso
+    // sale de este Timer que SI dispara; ademas fuerza el relevo si el owner cae.
+    Timer {
+        interval: 250
+        repeat: true
+        running: root.pinned && !root.pinEligible
+        onTriggered: root.syncPinEligible()
+    }
+    Timer {
+        interval: 4000
+        repeat: true
+        running: root.pinned
+        onTriggered: root.syncPinEligible()
+    }
+    onPinnedChanged: {
+        if (pinned) root.controller.hide()
+        if (root.pinned) {
+            if (root.gravityEnabled) gravLoop.start()
+            if (root.shownPinned && root.gravityEnabled && sprite) root.resyncScreen()
+        } else if (PinGate.release(root.pinToken)) root.pinEligible = false
+    }
+    onShownPinnedChanged: {
+        if (root.shownPinned && root.gravityEnabled && !gravLoop.running) gravLoop.start()
+        else if (!root.shownPinned) gravLoop.stop()
+    }
 
     readonly property real screenW: root.pinned && pinnedWindow && pinnedWindow.screen ? pinnedWindow.screen.width : (Quickshell.screen ? Quickshell.screen.width : 1920)
     readonly property real screenH: root.pinned && pinnedWindow && pinnedWindow.screen ? pinnedWindow.screen.height : (Quickshell.screen ? Quickshell.screen.height : 1080)
@@ -43,7 +88,7 @@ Panel {
         // Detecta cambio de monitor/resolución de la pantalla donde vive el pet:
         // si la gravedad está activa, relanza la caída para caer lo mismo hasta el nuevo fondo;
         // el pet_NUNCA_ queda descolgado: gravTick recalcula floorY con la screenH nueva cada tick.
-        if (root.pinned && root.gravityEnabled) {
+        if (root.shownPinned && root.gravityEnabled) {
             if (gravLoop.running) { gravLoop.stop(); gravLoop.start() }
             else if (!root.grabbing) gravLoop.start()
         }
@@ -52,9 +97,27 @@ Panel {
 
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
 
+    // --- Arrastre y gravedad ------------------------------------------------
     property int dragDx: 0
     property int dragDy: 0
+    property bool grabbing: false
+
+    // La mascota cae (gravDropOffset alimenta el margen top de la ventana),
+    // y al aterrizar se desliza en horizontal (gravWalkOffset) hacia la X real
+    // donde se soltó. gravVel acumula la velocidad de caída; gravFall y
+    // gravLandX son estados de la física.
     property real gravDropOffset: 0
+    property real gravFall: 0
+    property real gravVel: 0
+    property real gravWalkOffset: 0
+    property int gravLandX: -1
+
+    Timer {
+        id: gravLoop
+        interval: 16
+        repeat: true
+        onTriggered: root.gravTick()
+    }
 
     NumberAnimation {
         id: gravAnim
@@ -63,13 +126,11 @@ Panel {
         duration: 320
         easing.type: Easing.InQuad
         onRunningChanged: if (!running) {
-            // aterrizó: COMPROMISO con la X REAL desde donde soltaste (gravLandX, nunca centro)
+            // aterrizó: compromiso con la X real desde donde soltaste (gravLandX, nunca el centro)
             var floorY = Math.round(Math.max(0, root.screenH - Math.round(208 * petScale + 6)))
             var lanX = root.gravLandX >= 0 ? root.gravLandX : (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96)
             root.saveSetting("pinnedX", lanX)
             root.saveSetting("pinnedY", floorY)
-            if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
-                root.bar.run(root.hubCommand("move", lanX, floorY))
             var walk = Math.round(lanX - (root.pinnedX >= 0 ? root.pinnedX : Math.round(root.screenW / 2) - 96))
             if (walk !== 0) {
                 if (sprite) sprite.pose = "running"
@@ -78,18 +139,6 @@ Panel {
             } else if (sprite) sprite.pose = "idle"
         }
     }
-    property real gravFall: 0
-    property real gravWalkOffset: 0
-    property real gravVel: 0
-    property bool grabbing: false
-
-    Timer {
-        id: gravLoop
-        interval: 16
-        repeat: true
-        onTriggered: root.gravTick()
-    }
-    property int gravLandX: -1
 
     NumberAnimation {
         id: walkAnim
@@ -119,7 +168,7 @@ Panel {
     }
     function roamMaxLeft() { return Math.max(0, root.screenW - 192 * petScale) }
     function roamAllowed() {
-        return root.pinned && root.animate && root.randomBehavior && root.currentPet !== null
+        return root.shownPinned && root.animate && root.randomBehavior && root.currentPet !== null
             && !root.grabbing && !gravLoop.running && !gravAnim.running && !walkAnim.running
             && (!root.activityEnabled || root.activityPose === "idle")
     }
@@ -131,8 +180,6 @@ Panel {
     function roamCommit() {
         var nx = Math.round(root.clamp(root.roamBaseLeft() + root.roamOffset, 0, root.roamMaxLeft()))
         root.roamOffset = 0
-        if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
-            root.bar.run(root.hubCommand("move", nx, root.pinnedY >= 0 ? root.pinnedY : Math.round(root.screenH / 2) - 104))
         root.saveSetting("pinnedX", nx)
     }
     function roamPlan() {
@@ -183,7 +230,7 @@ Panel {
         id: roamLoop
         interval: root.roamWalking ? 16 : 250
         repeat: true
-        running: root.pinned
+        running: root.shownPinned
         onTriggered: root.roamStep()
     }
 
@@ -198,8 +245,6 @@ Panel {
     readonly property color barForeground: bar ? bar.foreground : Style.textPrimary
 
     onOpenedChanged: { if (opened) library.rescan() }
-    Component.onCompleted: if (root.pinned && root.gravityEnabled) gravLoop.start()
-    onPinnedChanged: { if (pinned) root.controller.hide(); if (root.pinned && root.gravityEnabled && sprite) root.resyncScreen() }
     onPetIdChanged: if (pinned && petId !== "" && library.pets.length > 0 && !root.currentPet) root.saveSetting("pinned", false)
 
     function toggle() {
@@ -208,24 +253,9 @@ Panel {
     }
 
     function launchApp() {
-        if (!root.hubEnabled) return
+        if (!root.launchOnClick) return
         if (root.bar && typeof root.bar.run === "function")
-            root.bar.run(root.hubCommand("open"))
-    }
-
-    function hubCommand(mode, mxOverride, myOverride) {
-        var scrW = Quickshell.screen ? Quickshell.screen.width : 1920
-        var scrH = Quickshell.screen ? Quickshell.screen.height : 1080
-        var monX = Quickshell.screen ? Quickshell.screen.x : 0
-        var monY = Quickshell.screen ? Quickshell.screen.y : 0
-        var mx = mxOverride >= 0 ? mxOverride : (root.pinnedX >= 0 ? root.pinnedX : Math.round(scrW / 2) - 96)
-        var my = myOverride >= 0 ? myOverride : (root.pinnedY >= 0 ? root.pinnedY : Math.round(scrH / 2) - 104)
-        var gx = monX + mx + root.dragDx
-        var gy = monY + my + root.dragDy
-        return "bash \"" + home + "/.config/omarchy/plugins/madmasx.hermes-pets/open-hermes-hud.sh\" "
-            + Math.round(gx) + " " + Math.round(gy) + " "
-            + Math.round(192 * petScale) + " " + Math.round(208 * petScale) + " "
-            + Math.round(scrW) + " " + Math.round(scrH) + " " + mode
+            root.bar.run("hermes desktop --skip-build")
     }
 
     function dragPet(dx, dy) {
@@ -260,8 +290,6 @@ Panel {
                 return
             }
         }
-        if (root.hubEnabled && root.bar && typeof root.bar.run === "function")
-            root.bar.run(root.hubCommand("move", nx, ny))
     }
 
     function saveSetting(key, value) {
@@ -271,9 +299,10 @@ Panel {
     }
 
     function toggleMovable() { movable = !movable; saveSetting("movable", movable) }
+    function toggleLaunchOnClick() { launchOnClick = !launchOnClick; saveSetting("launchOnClick", launchOnClick) }
     function gravTick() {
         if (root.grabbing) return
-        if (!root.gravityEnabled || !root.pinned) { gravLoop.stop(); return }
+        if (!root.gravityEnabled || !root.shownPinned) { gravLoop.stop(); return }
         var floorY = Math.max(0, Math.round(Math.max(0, root.screenH - Math.round(208 * petScale + 6))))
         var base = root.pinnedY >= 0 ? root.pinnedY + root.dragDy : Math.round(root.screenH / 2) - 104
         var cy = base + root.gravDropOffset
@@ -301,7 +330,7 @@ Panel {
             if (sprite) sprite.pose = "idle"
         } else {
             // Gravedad ACTIVADA: física CONTINUA e INMEDIATA — cae sola sin tocar el pet
-            if (root.pinned) {
+            if (root.shownPinned) {
                 if (walkAnim.running) walkAnim.stop()
                 root.gravVel = 0
                 root.gravDropOffset = 0; root.gravWalkOffset = 0
@@ -309,7 +338,6 @@ Panel {
             }
         }
     }
-    function toggleHubEnabled() { hubEnabled = !hubEnabled; saveSetting("hubEnabled", hubEnabled) }
     function toggleActivity() { activityEnabled = !activityEnabled; saveSetting("activityEnabled", activityEnabled) }
     function toggleAnimate() { animate = !animate; saveSetting("animate", animate) }
 
@@ -575,7 +603,7 @@ Panel {
             Row { spacing: Style.space(6)
                 PanelActionButton {
                     iconText: root.pinned ? "\uf024" : "\uf0c7"
-                    tooltipText: root.pinned ? "Desanclar del escritorio" : "Fijar al escritorio"
+                    tooltipText: root.pinned ? "Quitar del escritorio" : "Fijar al escritorio"
                     foreground: root.barForeground; fontFamily: root.fontFamily
                     onClicked: { root.saveSetting("pinned", !root.pinned) }
                 }
@@ -603,14 +631,14 @@ Panel {
             Column { id: settingsColumn; width: parent.width; spacing: Style.space(4)
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlHub.width - Style.space(10); text: "Click pet: abrir Hub junto a él"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
-                    Row { id: ctrlHub; spacing: Style.space(4)
-                        ToggleSwitch { checked: hubEnabled; onToggled: root.toggleHubEnabled() }
+                    Text { width: parent.width - ctrlLaunch.width - Style.space(10); text: "Clic: abrir Hermes Desktop"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlLaunch; spacing: Style.space(4)
+                        ToggleSwitch { checked: launchOnClick; onToggled: root.toggleLaunchOnClick() }
                     }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlMove.width - Style.space(10); text: "Permitir mover el pet"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlMove.width - Style.space(10); text: "Permitir mover la mascota"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlMove; spacing: Style.space(4)
                         ToggleSwitch { checked: movable; onToggled: root.toggleMovable() }
                     }
@@ -631,7 +659,7 @@ Panel {
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlScale.width - Style.space(10); text: "Tamaño: " + Math.round(petScale * 100) + "% (Alt+Scroll)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlScale.width - Style.space(10); text: "Tamaño: " + Math.round(petScale * 100) + "%"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlScale; spacing: Style.space(4)
                         Button { text: "-"; width: Style.space(32); foreground: root.barForeground; fontFamily: root.fontFamily; fontSize: 14; onClicked: root.setScale(petScale - 0.25) }
                         Button { text: "+"; width: Style.space(32); foreground: root.barForeground; fontFamily: root.fontFamily; fontSize: 14; onClicked: root.setScale(petScale + 0.25) }
@@ -655,7 +683,7 @@ Panel {
                 Text { width: parent.width; text: "Mascota: " + (root.currentPet ? root.currentPet.displayName : "Ninguna"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; opacity: 0.85 }
                 Text { width: parent.width; text: "Estado: " + (root.activityEnabled ? root.activityPose : "idle (sin monitoreo)"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
                 Text { width: parent.width; text: root.pinned ? ("Fijado" + (root.movable ? " (movible)" : " (fijo)")) : "Panel de barra"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7 }
-                Text { width: parent.width; text: root.hubEnabled ? "Click en la mascota: abre el Hub junto al pet" : "Click en la mascota: no hace nada (Hub desactivado)"; color: "#6c63ff"; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.8 }
+                Text { width: parent.width; text: root.launchOnClick ? "Clic en la mascota: abre Hermes Desktop" : "Clic en la mascota: desactivado"; color: "#6c63ff"; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.8 }
             }
         }
     }
@@ -733,8 +761,8 @@ Panel {
     // --- Pinned sprite layer con overlay de funciones ---
     Item {
         id: stage
-        parent: root.pinned ? pinnedWindow.contentItem : null
-        visible: root.pinned
+        parent: root.shownPinned ? pinnedWindow.contentItem : null
+        visible: root.shownPinned
         implicitWidth: 192
         implicitHeight: 208
 
@@ -752,11 +780,11 @@ Panel {
                 transformOrigin: Item.TopLeft
                 sheetUrl: root.currentPet ? root.currentPet.sheetUrl : ""
                 smoothScaling: root.smoothScaling
-                running: root.pinned && root.animate && root.currentPet !== null
+                running: root.shownPinned && root.animate && root.currentPet !== null
                 randomBehavior: root.randomBehavior
                 onDragged: function(dx, dy) { root.dragPet(dx, dy) }
                 onDropped: root.dropPet()
-                onHudClicked: root.launchApp()
+                onClicked: root.launchApp()
             }
 
             // Escalado con Alt + Scroll
@@ -774,7 +802,7 @@ Panel {
     // --- Window para pinned mode ---
     PanelWindow {
         id: pinnedWindow
-        visible: root.pinned
+        visible: root.shownPinned
         implicitWidth: 192 * petScale
         implicitHeight: 208 * petScale
         WlrLayershell.namespace: "hermes-pets"
