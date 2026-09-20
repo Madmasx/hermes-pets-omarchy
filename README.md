@@ -1,5 +1,7 @@
 # Hermes Pets
 
+![Hermes Pets](assets/preview.png)
+
 Un acompañante animado tipo mascota para la barra de Omarchy. Reproduce las
 hojas de sprite del petdex de Hermes, mira el cursor,
 saluda cuando lo clickeas y puede fijarse al escritorio. Basado en
