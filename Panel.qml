@@ -7,7 +7,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "PinGate.js" as PinGate
+import "PinCoordinator.js" as PinGate
 
 Panel {
     id: root
@@ -55,6 +55,8 @@ Panel {
         else if (PinGate.release(root.pinToken)) root.pinEligible = false
     }
 
+    Component.onDestruction: PinGate.release(root.pinToken)
+
     Timer {
         interval: 250
         repeat: true
@@ -62,9 +64,9 @@ Panel {
         onTriggered: root.syncPinEligible()
     }
     Timer {
-        interval: 4000
+        interval: 2000
         repeat: true
-        running: root.pinned
+        running: root.pinned && root.pinEligible
         onTriggered: root.syncPinEligible()
     }
 
