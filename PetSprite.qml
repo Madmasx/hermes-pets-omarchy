@@ -8,6 +8,9 @@ Item {
   property bool smoothScaling: true
   property bool running: false
   property bool randomBehavior: true
+  property bool mirrored: false
+  property real shadowScale: 1.0
+  property real shadowOpacity: 0.42
   property string pose: "idle"
   property int frame: 0
   property int waitMs: 0
@@ -21,6 +24,7 @@ Item {
   property real lastX: 0
   property real lastY: 0
   property bool dragMoved: false
+  property double lastClickMs: 0
 
   readonly property bool ready: sheet.status === Image.Ready
   readonly property int rows: ready ? Math.floor(sheet.sourceSize.height / 208) : 0
@@ -51,6 +55,7 @@ Item {
   signal dragged(real dx, real dy)
   signal dropped()
   signal clicked()
+  signal doubleClicked()
 
   implicitWidth: 192
   implicitHeight: 208
@@ -109,7 +114,6 @@ Item {
     var dy = y - pressY
     if (!dragMoved && Math.hypot(dx, dy) < 2) return
     if (!dragMoved) {
-      // First drag movement: center the pet under the cursor.
       dragged(pressX - width / 2 + dx, pressY - height / 2 + dy)
       lastX = x
       lastY = y
@@ -122,11 +126,19 @@ Item {
   }
 
   function release() {
-    if (dragMoved) dropped()
-    else {
-      wave()
-      clicked()
+    if (dragMoved) {
+      dropped()
+      return
     }
+    var now = Date.now()
+    if (now - lastClickMs <= 280) {
+      lastClickMs = 0
+      doubleClicked()
+      return
+    }
+    lastClickMs = now
+    wave()
+    clicked()
   }
 
   function step() {
@@ -169,33 +181,63 @@ Item {
     onTriggered: root.step()
   }
 
-  Image {
-    id: sheet
-    source: root.sheetUrl
-    x: -root.cell.frame * 192
-    y: -root.cell.row * 208
-    smooth: root.smoothScaling
-    asynchronous: true
-    onStatusChanged: {
-      if (status === Image.Error) console.warn("hermes-pets: failed to load " + source)
-      if (status !== Image.Ready || source === root.loggedSheet) return
-      root.loggedSheet = source
-      if (sourceSize.width !== 1536 || sourceSize.height % 208 !== 0)
-        console.warn("hermes-pets: unexpected atlas size " + sourceSize.width + "x" + sourceSize.height + " for " + source)
+  // Soft contact shadow under feet; shrinks and fades with altitude.
+  Rectangle {
+    id: contactShadow
+    z: 0
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.bottom: parent.bottom
+    anchors.bottomMargin: 2
+    width: Math.round(106 * root.shadowScale)
+    height: Math.max(4, Math.round(22 * root.shadowScale))
+    radius: height / 2
+    color: "#000000"
+    opacity: root.ready ? root.shadowOpacity : 0
+    visible: root.ready && root.shadowOpacity > 0.02
+  }
+
+  // Mirrored sprite viewport so art can face inward or match travel direction.
+  Item {
+    id: spriteViewport
+    z: 1
+    anchors.fill: parent
+    clip: true
+    transform: Scale {
+      origin.x: spriteViewport.width / 2
+      xScale: root.mirrored ? -1 : 1
+    }
+
+    Image {
+      id: sheet
+      source: root.sheetUrl
+      x: -root.cell.frame * 192
+      y: -root.cell.row * 208
+      smooth: root.smoothScaling
+      asynchronous: true
+      onStatusChanged: {
+        if (status === Image.Error) console.warn("hermes-pets: failed to load " + source)
+        if (status !== Image.Ready || source === root.loggedSheet) return
+        root.loggedSheet = source
+        if (sourceSize.width !== 1536 || sourceSize.height % 208 !== 0)
+          console.warn("hermes-pets: unexpected atlas size " + sourceSize.width + "x" + sourceSize.height + " for " + source)
+      }
     }
   }
 
   MouseArea {
     id: mouse
+    z: 2
     anchors.fill: parent
     hoverEnabled: true
-    cursorShape: Qt.PointingHandCursor
+    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
     onEntered: {
-      root.look = Sprite.lookCell(mouseX - width / 2, mouseY - height / 2)
+      var lx = (mouseX - width / 2) * (root.mirrored ? -1 : 1)
+      root.look = Sprite.lookCell(lx, mouseY - height / 2)
       root.hovering = true
     }
     onPositionChanged: function(event) {
-      root.look = Sprite.lookCell(event.x - width / 2, event.y - height / 2)
+      var lx = (event.x - width / 2) * (root.mirrored ? -1 : 1)
+      root.look = Sprite.lookCell(lx, event.y - height / 2)
       if (pressed) root.drag(event.x, event.y)
     }
     onExited: root.leave()

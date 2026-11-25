@@ -8,6 +8,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "PinCoordinator.js" as PinGate
+import "PetPhysics.js" as Physics
 
 Panel {
     id: root
@@ -74,87 +75,164 @@ Panel {
         if (root.pinned) {
             root.close()
             root.syncPinEligible()
-            if (root.shownPinned && root.gravityEnabled) gravLoop.restart()
+            if (root.shownPinned && root.gravityEnabled) root.dropIfAirborne()
         } else if (PinGate.release(root.pinToken)) {
             root.pinEligible = false
         }
     }
 
     onShownPinnedChanged: {
-        if (root.shownPinned && root.gravityEnabled && !gravLoop.running) gravLoop.start()
-        else if (!root.shownPinned) gravLoop.stop()
+        if (root.shownPinned && root.gravityEnabled) root.dropIfAirborne()
+        else if (!root.shownPinned) root.stopBody()
     }
 
     // --- Geometry helpers ----------------------------------------------------
     readonly property real screenW: root.pinned && pinnedWindow && pinnedWindow.screen ? pinnedWindow.screen.width : (Quickshell.screen ? Quickshell.screen.width : 1920)
     readonly property real screenH: root.pinned && pinnedWindow && pinnedWindow.screen ? pinnedWindow.screen.height : (Quickshell.screen ? Quickshell.screen.height : 1080)
 
-    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
+    function clamp(v, lo, hi) { return Physics.clamp(v, lo, hi) }
     function petWidthPx() { return Math.round(192 * root.petScale) }
     function petHeightPx() { return Math.round(208 * root.petScale) }
     function maxLeft() { return Math.max(0, root.screenW - root.petWidthPx()) }
-    function floorY() { return Math.max(0, root.screenH - root.petHeightPx() - 6) }
+    function floorY() { return Math.max(0, root.screenH - root.petHeightPx() + Physics.FEET_DROP_PX) }
     function baseLeft() { return root.pinnedX >= 0 ? root.pinnedX : Math.round(root.maxLeft() / 2) }
     function baseTop() { return root.pinnedY >= 0 ? root.pinnedY : Math.round(root.floorY() / 2) }
 
+    readonly property real liveLeft: root.physActive
+        ? root.physX
+        : root.clamp(root.baseLeft() + root.dragDx + root.roamOffset, 0, root.maxLeft())
+    readonly property real liveTop: root.physActive
+        ? root.physY
+        : root.clamp(root.baseTop() + root.dragDy, 0, root.floorY())
+
+    readonly property var shadowInfo: Physics.shadowMetrics(root.liveTop, root.floorY(), root.petHeightPx())
+
     function resyncScreen() {
-        if (root.shownPinned && root.gravityEnabled && !root.grabbing) {
-            root.gravLandX = -1
-            gravLoop.restart()
-        }
         var clampedX = Math.round(root.clamp(root.baseLeft(), 0, root.maxLeft()))
         var clampedY = Math.round(root.clamp(root.baseTop(), 0, root.floorY()))
         if (root.pinnedX >= 0 && clampedX !== root.pinnedX) root.saveSetting("pinnedX", clampedX)
         if (root.pinnedY >= 0 && clampedY !== root.pinnedY) root.saveSetting("pinnedY", clampedY)
+        if (root.shownPinned && root.gravityEnabled && !root.grabbing) root.dropIfAirborne()
     }
 
-    // --- Drag & gravity physics ----------------------------------------------
+    // --- Drag, throw momentum, gravity & bounce physics ----------------------
     property real dragDx: 0
     property real dragDy: 0
     property bool grabbing: false
-    property real gravDropOffset: 0
-    property real gravVel: 0
-    property int gravLandX: -1
+    property real throwVx: 0
+    property real throwVy: 0
+    property double lastDragMs: 0
+
+    property bool physActive: false
+    property real physX: 0
+    property real physY: 0
+    property real physVx: 0
+    property real physVy: 0
+    property double physLastMs: 0
 
     Timer {
-        id: gravLoop
+        id: physLoop
         interval: 16
         repeat: true
-        onTriggered: root.gravTick()
+        running: root.physActive && root.shownPinned && !root.grabbing
+        onTriggered: root.physTick()
     }
 
-    function gravTick() {
-        if (root.grabbing) return
-        if (!root.gravityEnabled || !root.shownPinned) { gravLoop.stop(); return }
-        var floor = root.floorY()
-        var base = root.baseTop() + root.dragDy
-        var cy = base + root.gravDropOffset
-        if (cy >= floor) {
-            var fx = root.gravLandX >= 0 ? root.gravLandX : root.baseLeft()
-            root.gravLandX = -1
-            root.gravVel = 0
-            root.saveSetting("pinnedX", Math.round(root.clamp(fx, 0, root.maxLeft())))
-            root.saveSetting("pinnedY", Math.round(floor))
-            gravLoop.stop()
-            Qt.callLater(function() {
-                root.gravDropOffset = 0
-                if (sprite && !root.roamWalking) sprite.beginIdle()
-            })
-            return
+    function stopBody() {
+        root.physActive = false
+        root.physVx = 0
+        root.physVy = 0
+    }
+
+    function startBody(x, y, vx, vy, playJump) {
+        if (!root.shownPinned) return
+        root.physX = root.clamp(x, 0, root.maxLeft())
+        root.physY = root.clamp(y, 0, root.floorY())
+        root.physVx = vx
+        root.physVy = vy
+        root.physLastMs = Date.now()
+        root.physActive = true
+        if (playJump && sprite && root.animate) {
+            sprite.beginAction("jumping", 9999)
+            if (sprite.ticking) sprite.arm()
         }
-        root.gravVel = Math.min(root.gravVel + 2.4, 22)
-        root.gravDropOffset = Math.min(root.gravDropOffset + root.gravVel, floor - base)
+    }
+
+    function dropIfAirborne() {
+        if (!root.shownPinned || root.grabbing || root.physActive) return
+        var y = root.baseTop()
+        if (y < root.floorY() - 2) {
+            root.startBody(root.baseLeft(), y, 0, 0, true)
+        }
+    }
+
+    function hopCelebrate() {
+        if (!root.shownPinned || root.grabbing) return
+        var x = root.liveLeft
+        var y = root.liveTop
+        var vx = (Math.random() - 0.5) * 260
+        root.roamWalking = false
+        root.roamOffset = 0
+        root.startBody(x, y, vx, -820, true)
+    }
+
+    function physTick() {
+        if (root.grabbing || !root.shownPinned) { root.stopBody(); return }
+        var now = Date.now()
+        var dt = Math.min(Physics.MAX_DT_S, Math.max(0.004, (now - root.physLastMs) / 1000))
+        root.physLastMs = now
+
+        var res = Physics.stepBody(
+            { x: root.physX, y: root.physY, vx: root.physVx, vy: root.physVy },
+            dt, root.maxLeft(), root.floorY(), root.gravityEnabled
+        )
+        root.physX = res.x
+        root.physY = res.y
+        root.physVx = res.vx
+        root.physVy = res.vy
+
+        if (res.landed) {
+            var fx = Math.round(res.x)
+            var fy = Math.round(res.y)
+            root.saveSetting("pinnedX", fx)
+            root.saveSetting("pinnedY", fy)
+            Qt.callLater(function() {
+                root.stopBody()
+                root.roamPauseUntil = Date.now() + Physics.dwellMs()
+                if (sprite && !root.roamWalking) {
+                    if (root.activityEnabled && root.activityPose !== "idle") root.applyActivityPose()
+                    else sprite.beginIdle()
+                }
+            })
+        }
     }
 
     function dragPet(dx, dy) {
         if (!root.pinned || !root.movable) return
-        root.grabbing = true
-        if (gravLoop.running) gravLoop.stop()
-        if (root.roamWalking) {
-            root.roamWalking = false
-            root.roamCommit()
-            if (sprite) sprite.beginIdle()
+        var now = Date.now()
+        if (!root.grabbing) {
+            if (root.physActive) {
+                root.saveSetting("pinnedX", Math.round(root.physX))
+                root.saveSetting("pinnedY", Math.round(root.physY))
+                root.stopBody()
+            }
+            if (root.roamWalking || root.roamOffset !== 0) {
+                root.roamWalking = false
+                root.roamCommit()
+                if (sprite) sprite.beginIdle()
+            }
+            root.throwVx = 0
+            root.throwVy = 0
+            root.lastDragMs = now
+        } else {
+            var dt = (now - root.lastDragMs) / 1000
+            if (dt > 0.002 && dt < 0.15) {
+                root.throwVx = root.throwVx * 0.45 + (dx / dt) * 0.55
+                root.throwVy = root.throwVy * 0.45 + (dy / dt) * 0.55
+            }
+            root.lastDragMs = now
         }
+        root.grabbing = true
         root.dragDx += dx
         root.dragDy += dy
     }
@@ -166,32 +244,40 @@ Panel {
         root.dragDx = 0
         root.dragDy = 0
         root.grabbing = false
+
+        var stale = (Date.now() - root.lastDragMs) > 120
+        var vel = stale ? { vx: 0, vy: 0 } : Physics.clampVelocity(root.throwVx, root.throwVy)
+        root.throwVx = 0
+        root.throwVy = 0
+
         root.saveSetting("pinnedX", nx)
         root.saveSetting("pinnedY", ny)
-        if (root.gravityEnabled && ny < root.floorY()) {
-            root.gravLandX = nx
-            root.gravVel = 0
-            root.gravDropOffset = 0
-            gravLoop.restart()
+
+        var flung = Math.hypot(vel.vx, vel.vy) > 110
+        var airborne = root.gravityEnabled && ny < root.floorY() - 2
+        if (flung || airborne) {
+            root.startBody(nx, ny, vel.vx, vel.vy, root.gravityEnabled)
         }
     }
 
-    // --- Roaming along bottom edge -------------------------------------------
+    // --- Calm ambient roaming (Hermes Game-AI + playful hops) ----------------
     property real roamOffset: 0
     property bool roamWalking: false
+    property bool roamMirror: false
     property real roamTargetLeft: 0
-    property real roamPauseUntil: 0
+    property double roamPauseUntil: 0
 
     function roamAllowed() {
         return root.shownPinned && root.animate && root.randomBehavior && root.currentPet !== null
-            && !root.grabbing && !gravLoop.running
+            && !root.grabbing && !root.physActive
             && (!root.activityEnabled || root.activityPose === "idle")
     }
 
     function roamPause() {
         root.roamWalking = false
-        if (sprite) { sprite.beginIdle(); if (sprite.ticking) sprite.arm() }
-        root.roamPauseUntil = Date.now() + 8000 + Math.random() * 12000
+        root.roamMirror = false
+        if (sprite && sprite.pose !== "idle") { sprite.beginIdle(); if (sprite.ticking) sprite.arm() }
+        root.roamPauseUntil = Date.now() + Physics.dwellMs()
     }
 
     function roamCommit() {
@@ -205,36 +291,50 @@ Panel {
         var maxL = root.maxLeft()
         if (maxL < 24) { root.roamPause(); return }
         var cur = root.clamp(root.baseLeft() + root.roamOffset, 0, maxL)
-        var target = Math.round(Math.random() * maxL)
+        var move = Physics.chooseMove(root.gravityEnabled && root.baseTop() >= root.floorY() - 4)
+
+        if (move === "rest") {
+            root.roamPause()
+            return
+        }
+
+        if (move === "hop") {
+            var hop = Physics.planHopVelocity(cur, maxL)
+            root.roamCommit()
+            root.startBody(cur, root.baseTop(), hop.vx, hop.vy, true)
+            return
+        }
+
+        var target = Physics.pickStrollTarget(cur, maxL)
         if (Math.abs(target - cur) < 16) { root.roamPause(); return }
-        var delta = target - cur
+        var dir = target > cur ? 1 : -1
+        var pres = Physics.walkPresentation(dir, sprite ? sprite.hasLocomotion : false)
         root.roamWalking = true
+        root.roamMirror = pres.mirror
         root.roamTargetLeft = target
         if (sprite) {
-            var pose = sprite.hasLocomotion ? (delta > 0 ? "running-right" : "running-left") : "running"
-            sprite.beginAction(pose, 9999)
+            sprite.beginAction(pres.pose, 9999)
             if (sprite.ticking) sprite.arm()
         }
     }
 
     function roamStep() {
         if (!root.roamAllowed()) {
-            if (root.roamWalking) { root.roamWalking = false; if (sprite) sprite.beginIdle() }
+            if (root.roamWalking) { root.roamWalking = false; root.roamMirror = false; if (sprite) sprite.beginIdle() }
             if (root.roamOffset !== 0) root.roamCommit()
             root.roamPauseUntil = 0
-            if (root.activityEnabled) root.applyActivityPose()
+            if (root.activityEnabled && !root.physActive) root.applyActivityPose()
             return
         }
         if (root.roamWalking) {
-            var petW = root.petWidthPx()
-            var loopMs = sprite ? sprite.loopMs : 820
-            var speed = Math.max(20, (petW * 0.8) / Math.max(0.1, loopMs / 1000))
+            var speed = Physics.walkSpeedPxS(root.petWidthPx(), sprite ? sprite.loopMs : 820)
             var cur = root.baseLeft() + root.roamOffset
             var remaining = root.roamTargetLeft - cur
             var stepDist = speed * (roamLoop.interval / 1000)
-            if (Math.abs(remaining) <= Math.max(1.5, stepDist)) {
+            if (Math.abs(remaining) <= Math.max(Physics.ARRIVE_EPS, stepDist)) {
                 root.roamOffset += remaining
                 root.roamWalking = false
+                root.roamMirror = false
                 root.roamCommit()
                 root.roamPause()
             } else {
@@ -305,22 +405,30 @@ Panel {
         var next = !root.gravityEnabled
         root.saveSetting("gravityEnabled", next)
         if (!next) {
-            if (gravLoop.running) gravLoop.stop()
-            root.gravVel = 0
-            root.gravDropOffset = 0
-            root.gravLandX = -1
+            root.stopBody()
             if (sprite && !root.roamWalking) sprite.beginIdle()
         } else if (root.shownPinned) {
-            root.gravLandX = -1
-            root.gravVel = 0
-            root.gravDropOffset = 0
-            gravLoop.restart()
+            Qt.callLater(root.dropIfAirborne)
         }
     }
 
     function setScale(val) {
-        var clamped = Math.round(Math.max(0.25, Math.min(3.0, val)) * 100) / 100
-        root.saveSetting("petScale", clamped)
+        var next = Math.round(Physics.clamp(val, 0.25, 3.0) * 100) / 100
+        if (next === root.petScale) return
+        // Anchor bottom-center so the pet's feet stay planted while scaling.
+        if (root.pinnedX >= 0 && root.pinnedY >= 0) {
+            var oldW = root.petWidthPx()
+            var oldH = root.petHeightPx()
+            var newW = Math.round(192 * next)
+            var newH = Math.round(208 * next)
+            var newMaxL = Math.max(0, root.screenW - newW)
+            var newFloor = Math.max(0, root.screenH - newH + Physics.FEET_DROP_PX)
+            var nx = Math.round(Physics.clamp(root.pinnedX + (oldW - newW) / 2, 0, newMaxL))
+            var ny = Math.round(Physics.clamp(root.pinnedY + (oldH - newH), 0, newFloor))
+            root.saveSetting("pinnedX", nx)
+            root.saveSetting("pinnedY", ny)
+        }
+        root.saveSetting("petScale", next)
     }
 
     // --- Self-contained pet management via petdex.py -------------------------
@@ -822,9 +930,17 @@ Panel {
                 smoothScaling: root.smoothScaling
                 running: root.shownPinned && root.animate && root.currentPet !== null
                 randomBehavior: root.randomBehavior
+                mirrored: root.roamWalking
+                    ? root.roamMirror
+                    : (root.physActive
+                        ? root.physVx > 20
+                        : Physics.inwardMirror(root.liveLeft, root.petWidthPx(), root.screenW))
+                shadowScale: root.shadowInfo.scale
+                shadowOpacity: root.shadowInfo.opacity
                 onDragged: function(dx, dy) { root.dragPet(dx * root.petScale, dy * root.petScale) }
                 onDropped: root.dropPet()
                 onClicked: root.launchApp()
+                onDoubleClicked: root.hopCelebrate()
             }
 
             WheelHandler {
@@ -854,8 +970,8 @@ Panel {
         anchors.top: true
         anchors.left: true
         margins {
-            left: root.clamp(root.baseLeft() + root.dragDx + root.roamOffset, 0, root.maxLeft())
-            top: root.clamp(root.baseTop() + root.dragDy + root.gravDropOffset, 0, root.floorY())
+            left: root.liveLeft
+            top: root.liveTop
         }
     }
 }
