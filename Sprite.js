@@ -10,8 +10,10 @@ var POSES = {
   idle:    { row: 0, durations: [280, 110, 110, 140, 140, 320] },
   waving:  { row: 3, durations: [140, 140, 140, 280] },
   jumping: { row: 4, durations: [140, 140, 140, 140, 280] },
+  failed:  { row: 5, durations: [150, 150, 150, 150, 150, 260] },
   waiting: { row: 6, durations: [150, 150, 150, 150, 150, 260] },
-  running: { row: 7, durations: [120, 120, 120, 120, 120, 220] }
+  running: { row: 7, durations: [120, 120, 120, 120, 120, 220] },
+  review:  { row: 8, durations: [150, 150, 150, 150, 150, 260] }
 }
 
 // Activity poses — canonical state names -> row + durations.
@@ -34,7 +36,7 @@ var LOCOMOTION = {
 }
 
 // Random behaviour pool, played ACTION_LOOPS times.
-var ACTIONS = ["waving", "jumping", "waiting", "running"]
+var ACTIONS = ["waving", "jumping", "waiting", "running", "review"]
 var ACTION_LOOPS = 2
 
 function pickAction(previous, random) {

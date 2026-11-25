@@ -124,6 +124,7 @@ Panel {
     property double lastDragMs: 0
 
     property bool physActive: false
+    property bool physBonked: false
     property real physX: 0
     property real physY: 0
     property real physVx: 0
@@ -150,6 +151,7 @@ Panel {
         root.physY = root.clamp(y, 0, root.floorY())
         root.physVx = vx
         root.physVy = vy
+        root.physBonked = false
         root.physLastMs = Date.now()
         root.physActive = true
         if (playJump && sprite && root.animate) {
@@ -191,16 +193,27 @@ Panel {
         root.physVx = res.vx
         root.physVy = res.vy
 
+        if (res.hardImpact) {
+            root.physBonked = true
+            if (sprite && root.animate && sprite.pose !== "failed") {
+                sprite.beginAction("failed", 1)
+                if (sprite.ticking) sprite.arm()
+            }
+        }
+
         if (res.landed) {
             var fx = Math.round(res.x)
             var fy = Math.round(res.y)
+            var bonked = root.physBonked
             root.saveSetting("pinnedX", fx)
             root.saveSetting("pinnedY", fy)
             Qt.callLater(function() {
                 root.stopBody()
+                root.physBonked = false
                 root.roamPauseUntil = Date.now() + Physics.dwellMs()
                 if (sprite && !root.roamWalking) {
                     if (root.activityEnabled && root.activityPose !== "idle") root.applyActivityPose()
+                    else if (bonked && root.animate) { sprite.beginAction("failed", 1); if (sprite.ticking) sprite.arm() }
                     else sprite.beginIdle()
                 }
             })

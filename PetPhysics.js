@@ -107,13 +107,14 @@ function clampVelocity(vx, vy) {
 }
 
 // Advance free-body physics (gravity, throw momentum, wall & floor bounces).
-// Returns { x, y, vx, vy, landed }.
+// Returns { x, y, vx, vy, landed, hardImpact }.
 function stepBody(state, dt, maxLeft, floorY, gravityEnabled) {
   var stepDt = Math.min(MAX_DT_S, Math.max(0.001, dt))
   var x = state.x
   var y = state.y
   var vx = state.vx
   var vy = state.vy
+  var hardImpact = false
 
   if (gravityEnabled) {
     vy += GRAVITY_PX_S2 * stepDt
@@ -128,15 +129,18 @@ function stepBody(state, dt, maxLeft, floorY, gravityEnabled) {
 
   // Left / right screen edge bounce.
   if (x < 0) {
+    if (Math.abs(vx) > 650) hardImpact = true
     x = 0
     vx = Math.abs(vx) * WALL_RESTITUTION
   } else if (x > maxLeft) {
+    if (Math.abs(vx) > 650) hardImpact = true
     x = maxLeft
     vx = -Math.abs(vx) * WALL_RESTITUTION
   }
 
   // Ceiling bounce.
   if (y < 0) {
+    if (Math.abs(vy) > 650) hardImpact = true
     y = 0
     vy = Math.abs(vy) * 0.4
   }
@@ -144,6 +148,7 @@ function stepBody(state, dt, maxLeft, floorY, gravityEnabled) {
   var landed = false
   if (gravityEnabled) {
     if (y >= floorY) {
+      if (vy > 1100) hardImpact = true
       y = floorY
       if (Math.abs(vy) >= FLOOR_STOP_VY) {
         vy = -Math.abs(vy) * FLOOR_RESTITUTION
@@ -159,6 +164,7 @@ function stepBody(state, dt, maxLeft, floorY, gravityEnabled) {
     }
   } else {
     if (y > floorY) {
+      if (Math.abs(vy) > 650) hardImpact = true
       y = floorY
       vy = -Math.abs(vy) * WALL_RESTITUTION
     }
@@ -169,7 +175,7 @@ function stepBody(state, dt, maxLeft, floorY, gravityEnabled) {
     }
   }
 
-  return { x: x, y: y, vx: vx, vy: vy, landed: landed }
+  return { x: x, y: y, vx: vx, vy: vy, landed: landed, hardImpact: hardImpact }
 }
 
 // Contact shadow scale & opacity based on altitude above the floor.

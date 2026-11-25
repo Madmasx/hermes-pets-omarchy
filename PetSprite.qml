@@ -91,6 +91,16 @@ Item {
     if (!running) return
     beginAction("waving", 1)
     if (ticking) arm()
+    burstHearts(3)
+  }
+
+  function burstHearts(count) {
+    if (!running) return
+    var n = Math.min(heartRepeater.count, Math.max(1, count || 3))
+    for (var i = 0; i < n; i++) {
+      var h = heartRepeater.itemAt(i)
+      if (h) h.launch(i * 75)
+    }
   }
 
   function leave() {
@@ -133,6 +143,7 @@ Item {
     var now = Date.now()
     if (now - lastClickMs <= 280) {
       lastClickMs = 0
+      burstHearts(5)
       doubleClicked()
       return
     }
@@ -220,6 +231,62 @@ Item {
         root.loggedSheet = source
         if (sourceSize.width !== 1536 || sourceSize.height % 208 !== 0)
           console.warn("hermes-pets: unexpected atlas size " + sourceSize.width + "x" + sourceSize.height + " for " + source)
+      }
+    }
+  }
+
+  // Floating heart particles on click / double-click (zero timers when idle).
+  Item {
+    id: heartLayer
+    z: 3
+    anchors.fill: parent
+    enabled: false
+
+    Repeater {
+      id: heartRepeater
+      model: 5
+
+      Text {
+        id: heart
+        property real startX: 96
+        property real driftX: 0
+        property real startY: 56
+        property int delayMs: 0
+
+        textFormat: Text.PlainText
+        text: "♥"
+        color: index % 2 === 0 ? "#ff5c8a" : "#ff85a8"
+        font.pixelSize: 18 + (index % 3) * 4
+        opacity: 0
+        x: startX
+        y: startY
+
+        function launch(delay) {
+          anim.stop()
+          delayMs = delay
+          startX = 62 + Math.random() * 68
+          driftX = (Math.random() - 0.5) * 48
+          startY = 48 + Math.random() * 28
+          x = startX
+          y = startY
+          scale = 0.7
+          opacity = 0
+          anim.start()
+        }
+
+        SequentialAnimation {
+          id: anim
+          PauseAnimation { duration: heart.delayMs }
+          ParallelAnimation {
+            NumberAnimation { target: heart; property: "y"; from: heart.startY; to: heart.startY - 52; duration: 760; easing.type: Easing.OutCubic }
+            NumberAnimation { target: heart; property: "x"; from: heart.startX; to: heart.startX + heart.driftX; duration: 760; easing.type: Easing.OutSine }
+            NumberAnimation { target: heart; property: "scale"; from: 0.7; to: 1.15; duration: 300; easing.type: Easing.OutCubic }
+            SequentialAnimation {
+              NumberAnimation { target: heart; property: "opacity"; from: 0; to: 0.95; duration: 140; easing.type: Easing.OutCubic }
+              NumberAnimation { target: heart; property: "opacity"; from: 0.95; to: 0; duration: 620; easing.type: Easing.InQuad }
+            }
+          }
+        }
       }
     }
   }
