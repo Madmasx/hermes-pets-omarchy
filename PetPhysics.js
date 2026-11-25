@@ -71,6 +71,27 @@ function walkSpeedPxS(petW, loopMs) {
   return Math.max(24, (petW * STRIDE_PER_LOOP) / sec)
 }
 
+// Smooth 2D flight speed (slightly brisker than walking).
+function flightSpeedPxS(petW, loopMs) {
+  return Math.max(55, walkSpeedPxS(petW, loopMs) * 1.35)
+}
+
+// Pick a scenic 2D flight destination anywhere on screen.
+function pickFlightTarget(fromX, fromY, maxLeft, floorY, rng) {
+  var r = typeof rng === "function" ? rng : Math.random
+  var topMargin = Math.min(36, Math.max(0, floorY * 0.1))
+  var usableY = Math.max(0, floorY - topMargin)
+  var tx = pickStrollTarget(fromX, maxLeft, r)
+  var ty = topMargin + r() * usableY
+  // Ensure noticeable vertical/diagonal motion rather than flat floor skimming.
+  if (Math.abs(ty - fromY) < 80 && usableY > 160) {
+    ty = fromY > topMargin + usableY * 0.5
+      ? topMargin + r() * (usableY * 0.4)
+      : topMargin + usableY * (0.55 + r() * 0.45)
+  }
+  return { x: clamp(tx, 0, maxLeft), y: clamp(ty, 0, floorY) }
+}
+
 // Art faces left by default; mirror when resting on the left half of the screen
 // so the pet looks inward toward the desktop center.
 function inwardMirror(leftX, petW, screenW) {

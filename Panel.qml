@@ -33,6 +33,7 @@ Panel {
     readonly property bool smoothScaling: root.setting("smooth", true) === true
     readonly property bool animate: root.setting("animate", true) === true
     readonly property bool randomBehavior: root.setting("randomBehavior", true) === true
+    readonly property bool freeFlight: root.setting("freeFlight", false) === true
     readonly property bool pinned: root.setting("pinned", false) === true
     readonly property int pinnedX: Number(root.setting("pinnedX", -1))
     readonly property int pinnedY: Number(root.setting("pinnedY", -1))
@@ -103,7 +104,7 @@ Panel {
         : root.clamp(root.baseLeft() + root.dragDx + root.roamOffset, 0, root.maxLeft())
     readonly property real liveTop: root.physActive
         ? root.physY
-        : root.clamp(root.baseTop() + root.dragDy, 0, root.floorY())
+        : root.clamp(root.baseTop() + root.dragDy + root.roamOffsetY, 0, root.floorY())
 
     readonly property var shadowInfo: Physics.shadowMetrics(root.liveTop, root.floorY(), root.petHeightPx())
 
@@ -161,7 +162,7 @@ Panel {
     }
 
     function dropIfAirborne() {
-        if (!root.shownPinned || root.grabbing || root.physActive) return
+        if (!root.shownPinned || root.grabbing || root.physActive || root.freeFlight) return
         var y = root.baseTop()
         if (y < root.floorY() - 2) {
             root.startBody(root.baseLeft(), y, 0, 0, true)
@@ -184,9 +185,10 @@ Panel {
         var dt = Math.min(Physics.MAX_DT_S, Math.max(0.004, (now - root.physLastMs) / 1000))
         root.physLastMs = now
 
+        var useGravity = root.gravityEnabled && !root.freeFlight
         var res = Physics.stepBody(
             { x: root.physX, y: root.physY, vx: root.physVx, vy: root.physVy },
-            dt, root.maxLeft(), root.floorY(), root.gravityEnabled
+            dt, root.maxLeft(), root.floorY(), useGravity
         )
         root.physX = res.x
         root.physY = res.y
@@ -267,17 +269,20 @@ Panel {
         root.saveSetting("pinnedY", ny)
 
         var flung = Math.hypot(vel.vx, vel.vy) > 110
-        var airborne = root.gravityEnabled && ny < root.floorY() - 2
+        var airborne = root.gravityEnabled && !root.freeFlight && ny < root.floorY() - 2
         if (flung || airborne) {
-            root.startBody(nx, ny, vel.vx, vel.vy, root.gravityEnabled)
+            root.startBody(nx, ny, vel.vx, vel.vy, root.gravityEnabled || root.freeFlight)
         }
     }
 
-    // --- Calm ambient roaming (Hermes Game-AI + playful hops) ----------------
+    // --- Calm ambient roaming (Hermes Game-AI + playful hops + free flight) --
     property real roamOffset: 0
+    property real roamOffsetY: 0
     property bool roamWalking: false
+    property bool roamFlying: false
     property bool roamMirror: false
     property real roamTargetLeft: 0
+    property real roamTargetTop: 0
     property double roamPauseUntil: 0
 
     function roamAllowed() {
@@ -288,23 +293,56 @@ Panel {
 
     function roamPause() {
         root.roamWalking = false
+        root.roamFlying = false
         root.roamMirror = false
         if (sprite && sprite.pose !== "idle") { sprite.beginIdle(); if (sprite.ticking) sprite.arm() }
         root.roamPauseUntil = Date.now() + Physics.dwellMs()
     }
 
     function roamCommit() {
-        if (root.roamOffset === 0) return
+        if (root.roamOffset === 0 && root.roamOffsetY === 0) return
         var nx = Math.round(root.clamp(root.baseLeft() + root.roamOffset, 0, root.maxLeft()))
+        var ny = Math.round(root.clamp(root.baseTop() + root.roamOffsetY, 0, root.floorY()))
         root.roamOffset = 0
+        root.roamOffsetY = 0
         root.saveSetting("pinnedX", nx)
+        root.saveSetting("pinnedY", ny)
     }
 
     function roamPlan() {
         var maxL = root.maxLeft()
+        var floor = root.floorY()
         if (maxL < 24) { root.roamPause(); return }
-        var cur = root.clamp(root.baseLeft() + root.roamOffset, 0, maxL)
-        var move = Physics.chooseMove(root.gravityEnabled && root.baseTop() >= root.floorY() - 4)
+        var curX = root.clamp(root.baseLeft() + root.roamOffset, 0, maxL)
+        var curY = root.clamp(root.baseTop() + root.roamOffsetY, 0, floor)
+
+        if (root.freeFlight) {
+            if (Physics.chooseMove(false) === "rest") {
+                root.roamPause()
+                return
+            }
+            var dst = Physics.pickFlightTarget(curX, curY, maxL, floor)
+            var fdx = dst.x - curX
+            var fdy = dst.y - curY
+            if (Math.hypot(fdx, fdy) < 24) { root.roamPause(); return }
+            var fdir = fdx >= 0 ? 1 : -1
+            var steep = Math.abs(fdy) > Math.abs(fdx) * 0.65
+            var fpres = steep
+                ? { pose: "jumping", mirror: fdir > 0 }
+                : Physics.walkPresentation(fdir, sprite ? sprite.hasLocomotion : false)
+            root.roamWalking = true
+            root.roamFlying = true
+            root.roamMirror = fpres.mirror
+            root.roamTargetLeft = dst.x
+            root.roamTargetTop = dst.y
+            if (sprite) {
+                sprite.beginAction(fpres.pose, 9999)
+                if (sprite.ticking) sprite.arm()
+            }
+            return
+        }
+
+        var move = Physics.chooseMove(root.gravityEnabled && curY >= floor - 4)
 
         if (move === "rest") {
             root.roamPause()
@@ -312,19 +350,21 @@ Panel {
         }
 
         if (move === "hop") {
-            var hop = Physics.planHopVelocity(cur, maxL)
+            var hop = Physics.planHopVelocity(curX, maxL)
             root.roamCommit()
-            root.startBody(cur, root.baseTop(), hop.vx, hop.vy, true)
+            root.startBody(curX, curY, hop.vx, hop.vy, true)
             return
         }
 
-        var target = Physics.pickStrollTarget(cur, maxL)
-        if (Math.abs(target - cur) < 16) { root.roamPause(); return }
-        var dir = target > cur ? 1 : -1
+        var target = Physics.pickStrollTarget(curX, maxL)
+        if (Math.abs(target - curX) < 16) { root.roamPause(); return }
+        var dir = target > curX ? 1 : -1
         var pres = Physics.walkPresentation(dir, sprite ? sprite.hasLocomotion : false)
         root.roamWalking = true
+        root.roamFlying = false
         root.roamMirror = pres.mirror
         root.roamTargetLeft = target
+        root.roamTargetTop = curY
         if (sprite) {
             sprite.beginAction(pres.pose, 9999)
             if (sprite.ticking) sprite.arm()
@@ -333,17 +373,40 @@ Panel {
 
     function roamStep() {
         if (!root.roamAllowed()) {
-            if (root.roamWalking) { root.roamWalking = false; root.roamMirror = false; if (sprite) sprite.beginIdle() }
-            if (root.roamOffset !== 0) root.roamCommit()
+            if (root.roamWalking) { root.roamWalking = false; root.roamFlying = false; root.roamMirror = false; if (sprite) sprite.beginIdle() }
+            if (root.roamOffset !== 0 || root.roamOffsetY !== 0) root.roamCommit()
             root.roamPauseUntil = 0
             if (root.activityEnabled && !root.physActive) root.applyActivityPose()
             return
         }
         if (root.roamWalking) {
+            var dt = roamLoop.interval / 1000
+            if (root.roamFlying) {
+                var fspeed = Physics.flightSpeedPxS(root.petWidthPx(), sprite ? sprite.loopMs : 820)
+                var cx = root.baseLeft() + root.roamOffset
+                var cy = root.baseTop() + root.roamOffsetY
+                var rx = root.roamTargetLeft - cx
+                var ry = root.roamTargetTop - cy
+                var dist = Math.hypot(rx, ry)
+                var fstep = fspeed * dt
+                if (dist <= Math.max(Physics.ARRIVE_EPS, fstep)) {
+                    root.roamOffset += rx
+                    root.roamOffsetY += ry
+                    root.roamWalking = false
+                    root.roamFlying = false
+                    root.roamMirror = false
+                    root.roamCommit()
+                    root.roamPause()
+                } else {
+                    root.roamOffset += (rx / dist) * fstep
+                    root.roamOffsetY += (ry / dist) * fstep
+                }
+                return
+            }
             var speed = Physics.walkSpeedPxS(root.petWidthPx(), sprite ? sprite.loopMs : 820)
             var cur = root.baseLeft() + root.roamOffset
             var remaining = root.roamTargetLeft - cur
-            var stepDist = speed * (roamLoop.interval / 1000)
+            var stepDist = speed * dt
             if (Math.abs(remaining) <= Math.max(Physics.ARRIVE_EPS, stepDist)) {
                 root.roamOffset += remaining
                 root.roamWalking = false
@@ -410,6 +473,15 @@ Panel {
     function toggleMovable() { root.saveSetting("movable", !root.movable) }
     function toggleLaunchOnClick() { root.saveSetting("launchOnClick", !root.launchOnClick) }
     function toggleRandomBehavior() { root.saveSetting("randomBehavior", !root.randomBehavior) }
+    function toggleFreeFlight() {
+        var next = !root.freeFlight
+        root.saveSetting("freeFlight", next)
+        if (!next && root.gravityEnabled && root.shownPinned) {
+            root.roamFlying = false
+            root.roamCommit()
+            Qt.callLater(root.dropIfAirborne)
+        }
+    }
     function toggleSmooth() { root.saveSetting("smooth", !root.smoothScaling) }
     function toggleActivity() { root.saveSetting("activityEnabled", !root.activityEnabled) }
     function toggleAnimate() { root.saveSetting("animate", !root.animate) }
@@ -759,6 +831,11 @@ Panel {
                 Row { width: parent.width; spacing: Style.space(10)
                     Text { width: parent.width - ctrlRoam.width - Style.space(10); textFormat: Text.PlainText; text: "Deambular por la pantalla"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlRoam; ToggleSwitch { checked: root.randomBehavior; onToggled: root.toggleRandomBehavior() } }
+                }
+
+                Row { width: parent.width; spacing: Style.space(10)
+                    Text { width: parent.width - ctrlFlight.width - Style.space(10); textFormat: Text.PlainText; text: "Vuelo libre (toda la pantalla)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Row { id: ctrlFlight; ToggleSwitch { checked: root.freeFlight; onToggled: root.toggleFreeFlight() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)

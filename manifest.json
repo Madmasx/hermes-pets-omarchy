@@ -26,6 +26,7 @@
       "movable": true,
       "gravityEnabled": true,
       "randomBehavior": true,
+      "freeFlight": false,
       "animate": true,
       "petScale": 0.75,
       "activityEnabled": false,
@@ -101,6 +102,13 @@
         "label": "Random behaviour",
         "description": "Roam: pause 8-20s, then walk to a random spot along the floor.",
         "defaultValue": true
+      },
+      {
+        "key": "freeFlight",
+        "type": "boolean",
+        "label": "Free flight",
+        "description": "Allow the pet to fly freely across the whole screen independently of gravity.",
+        "defaultValue": false
       },
       {
         "key": "animate",
