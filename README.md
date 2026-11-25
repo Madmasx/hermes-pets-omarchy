@@ -2,36 +2,22 @@
 
 ![Hermes Pets](assets/preview.png)
 
-Un acompañante animado tipo mascota para la barra de Omarchy. Reproduce las
-hojas de sprite del petdex de Hermes, mira el cursor,
-saluda cuando lo clickeas y puede fijarse al escritorio. Basado en
-[Omarchy Pets](https://plugins.omarchy.org/plugin.html?id=raiden-meixelysia.omarchy-pets),
-adaptado para leer los pets de Hermes en lugar de los de Codex.
+Un acompañante animado tipo mascota para la barra de Omarchy, **100 % autocontenido dentro de la carpeta del plugin** (sin depender de `hermes`, `curl` ni binarios externos). Reproduce hojas de sprite de [petdex.dev](https://petdex.dev), mira el cursor, saluda al hacer clic, deambula por la pantalla y puede fijarse sobre el escritorio.
 
 ## Características
 
-- Lee las mascotas instaladas en tu petdex de Hermes.
-- Reproduce las animaciones del atlas (idle, waving, jumping, waiting, running,
-  y filas direccionales de caminar si la hoja las trae).
-- El sprite mira el cursor (hojas v2 con filas de look).
-- Clic = saludo; si está fijada, el clic puede abrir Hermes Desktop
-  (configurable).
-- Pinned mode: la mascota flota sobre el escritorio con el panel cerrado; se
-  puede arrastrar y se recuerda la posición.
-- Desplazamiento con Alt mientras pasa sobre la mascota fijada: cambia su
-  tamaño.
-- Roaming: la mascota pausa unos segundos y camina sola por el borde inferior.
-- (Opcional) Espejo de actividad: la mascota refleja el estado del agente
-  Hermes (`idle`, `run`, `review`, `wave`, `jump`, `failed`, `waiting`).
+- **Autocontenido**: todo vive dentro de la carpeta del plugin (las mascotas se guardan en `pets/` por defecto y se gestionan con `petdex.py` usando solo la librería estándar de Python 3).
+- **Catálogo integrado**: busca, instala y elimina mascotas directamente desde `https://petdex.dev/api/manifest` con caché local y validación estricta del atlas (1536×N·208, PNG/WebP).
+- **Animaciones completas**: `idle`, `waving`, `jumping`, `waiting`, `running`, filas direccionales (`running-right`/`running-left`) y seguimiento del cursor (hojas v2).
+- **Modo fijado (`pinned`)**: flota sobre el escritorio con una sola instancia aunque tengas múltiples monitores (`PinGate.js`), se puede arrastrar, recuerda posición y tiene física de gravedad opcional.
+- **Roaming**: pausa 8-20 s y camina a un punto aleatorio del borde inferior.
+- **Escalado rápido**: `Alt + rueda` sobre la mascota fijada (subir agranda, bajar achica) o botones `-`/`+` en el panel.
+- **Espejo de actividad (opcional)**: observa `pets/activity-state.json` en tiempo real con `WatchedFile` (sin polling con `cat`).
 
 ## Requisitos
 
 - Omarchy con su barra Quickshell (`omarchy-shell`) sobre Hyprland.
-- Al menos una mascota instalada en Hermes:
-  `hermes pets install <slug>`.
-  La carpeta de la mascota debe contener `pet.json` y el spritesheet
-  (WebP o PNG, atlas 1536×N*208, 192×208 por frame).
-  Formato de los pets: https://petdex.dev
+- Python 3 (solo biblioteca estándar).
 
 ## Instalar
 
@@ -40,21 +26,14 @@ git clone https://github.com/madmasx/hermes-pets-omarchy.git
 omarchy plugin add ./hermes-pets-omarchy --enable
 ```
 
-El botón de la barra muestra el primer frame de la mascota activa; sin mascotas
-instaladas muestra una pata.
-
 ## Uso
 
-- Clic en el icono de la barra: abre el panel (mascota animada, lista de
-  mascotas instaladas y ajustes). Escape o clic fuera lo cierra.
-- Clic en una mascota de la lista: la activa. La elección sobrevive a
-  reinicios.
-- Botón pin: fija la mascota al escritorio con el panel cerrado. No toma foco
-  de teclado; la mascota es lo único clickeable.
-- Mascota fijada: arrástrala para moverla (la posición se recuerda) o haz clic
-  para abrir Hermes Desktop (si `launchOnClick` está activo).
-- Clic en el icono de la barra mientras está fijada = la desfija.
-- Alt + rueda sobre la mascota fijada: escala.
+- **Clic en el icono de la barra**: abre o cierra el panel (lista de mascotas instaladas, acciones rápidas y ajustes).
+- **Botón `+`**: abre el catálogo integrado de petdex.dev para buscar e instalar mascotas directamente en `pets/`.
+- **Botón pin**: fija o quita la mascota del escritorio.
+- **Botón mano**: hace saludar a la mascota fijada.
+- **Botón papelera**: elimina la mascota activa del disco.
+- **Mascota fijada**: clic = saluda (y opcionalmente ejecuta `clickCommand` si `launchOnClick` está activo); arrastrar = mover; `Alt + rueda` = escalar.
 
 ## Configuración
 
@@ -66,117 +45,37 @@ omarchy bar set madmasx.hermes-pets smooth false --json
 
 | Clave | Tipo | Default | Significado |
 |---|---|---|---|
-| `petId` | string | `""` | Nombre de la mascota activa; vacío = la primera instalada |
-| `petsDir` | string | `~/.hermes/pets` | Dónde leer el petdex de Hermes |
+| `petId` | string | `""` | Carpeta de la mascota activa; vacío = primera instalada |
+| `petsDir` | string | `""` | Vacío = `<plugin>/pets/`; acepta ruta personalizada (ej. `~/.hermes/pets`) |
 | `smooth` | bool | `true` | Escalado bilineal; apagar para pixel art |
 | `pinned` | bool | `false` | Dejar la mascota en el escritorio |
-| `pinnedX`/`pinnedY` | int | `-1` | Posición de la mascota fijada; `-1` = bajo su icono de barra. El arrastre los setea |
+| `pinnedX`/`pinnedY` | int | `-1` | Posición en píxeles; `-1` = centrada. Arrastrar los actualiza |
 | `movable` | bool | `true` | Permitir arrastrar la mascota fijada |
-| `petScale` | number | `0.75` | Factor de escala (0.25 a 3.0) |
-| `gravityEnabled` | bool | `true` | Si sueltas la mascota en el aire, cae al suelo |
-| `randomBehavior` | bool | `true` | Roaming: pausa y camina a una X aleatoria por el borde inferior |
-| `animate` | bool | `true` | Apagado: muestra un frame quieto y no corre el timer |
-| `launchOnClick` | bool | `true` | Clic en la mascota fijada: abre Hermes Desktop |
-| `activityEnabled` | bool | `false` | Refleja el estado del agente Hermes (ver abajo) |
+| `gravityEnabled` | bool | `true` | Si sueltas la mascota en el aire, cae al borde inferior |
+| `randomBehavior` | bool | `true` | Roaming: pausa y camina por el borde inferior |
+| `animate` | bool | `true` | Apagado: muestra un frame quieto y detiene el timer |
+| `petScale` | number | `0.75` | Factor de escala (`0.25` a `3.0`) |
+| `activityEnabled` | bool | `false` | Reacciona a `activity-state.json` dentro de `petsDir` |
+| `launchOnClick` | bool | `false` | Ejecuta `clickCommand` al hacer clic en la mascota fijada |
+| `clickCommand` | string | `""` | Comando opcional al hacer clic (ej. `hermes desktop --skip-build`) |
 
-## Roaming
+## Espejo de actividad (opcional)
 
-La mascota deambula en lugar de quedarse clavada: pausa 8-20 s, elige un destino
-aleatorio en el borde inferior y camina hacia él con la fila direccional
-correspondiente (`running-right`/`running-left`, o `running` en espejo si el
-atlas no las trae). La velocidad se deriva de la duración del loop de la
-animación (una longitud de cuerpo por loop) para que los pasos se lean como
-pasos y no como un deslizamiento. Al terminar cada tramo se persiste la X.
+Si quieres que la mascota reaccione a un agente externo (como Hermes), activa `activityEnabled` y escribe JSON en `<petsDir>/activity-state.json`:
 
-Se detiene mientras arrastras la mascota, mientras cae por gravedad y mientras
-el agente Hermes esté activo (`run`/`review`/`waiting`), que es cuando Hermes
-también solo deambula con el agente en reposo.
-
-## Espejo de actividad (activityEnabled)
-
-Cuando `activityEnabled` está activo, la mascota refleja en vivo lo que hace el
-agente Hermes. El estado (`agent.pet.state.derive_pet_state`) se calcula en
-proceso y **no se persiste**, así que un plugin de Hermes lo escribe a disco y
-este plugin de Omarchy lo lee.
-
-### Plugin de Hermes (productor)
-
-El plugin se suscribe a los hooks del ciclo de vida
-(`pre/post_llm_call`, `pre/post_api_request`, `api_request_error`,
-`pre/post_tool_call`, `pre/post_approval_response`, `pre_verify`,
-`agent_loop_stopped`, `subagent_stop`, `on_session_start/end/finalize`),
-deriva la pose canónica con `derive_pet_state` y la escribe de forma atómica
-en un archivo de estado.
-
-Su fuente versionada vive en [`hermes-plugin/`](hermes-plugin/) de este repo.
-Instalarlo y habilitarlo (una sola vez):
-
-```sh
-mkdir -p ~/.hermes/plugins/pet-activity
-cp hermes-plugin/__init__.py hermes-plugin/plugin.yaml ~/.hermes/plugins/pet-activity/
-hermes plugins enable pet-activity
-hermes plugins doctor pet-activity   # verifica los hooks registrados
+```json
+{"pose": "run", "updated_at": 1756000000.0}
 ```
 
-### Lector en Omarchy (consumidor)
-
-Este runtime de Quickshell no expone `Qt.readFile`, así que el panel lee el
-archivo de estado con un `Process` (`cat`) cada 700 ms mientras
-`activityEnabled` esté activo y aplica la pose cuando cambia.
-
-Vocabulario canónico (enum `PetState` de Hermes):
-`idle`, `run`, `review`, `wave`, `jump`, `failed`, `waiting`.
-
-- `run`, `review`, `waiting` se **sostienen** mientras Hermes siga en ese estado.
-- `wave`, `jump`, `failed` son beats de un solo pase; se ignoran transitorios
-  con `updated_at` de más de 3 s.
-
-El panel también acepta los nombres de sprite del atlas (`idle`, `waving`,
-`jumping`, `waiting`, `running`) además de los canónicos.
+Poses soportadas: `idle`, `run`, `review`, `waiting` (sostenidas) y `wave`, `jump`, `failed` (transitorias de un solo pase). El plugin opcional para Hermes vive en [`hermes-plugin/`](hermes-plugin/).
 
 ## Desarrollar
 
 ```sh
-# Validar la estructura (desde la raíz del repo)
 omarchy plugin validate .
-
-# Lint QML (si qmllint está disponible)
-qmllint -I "$(omarchy shell path)/shell" *.qml
-
-# Reiniciar el shell para recargar
-omarchy restart shell
+omarchy agent look plugin .
 ```
-
-Guardar un archivo bajo `~/.config/omarchy/plugins/` recarga el plugin
-automáticamente; no hace falta reiniciar salvo para `manifest.json`.
-
-## Quitar
-
-```sh
-omarchy plugin remove madmasx.hermes-pets
-```
-
-Esto borra la carpeta del plugin (con backup). La línea de ajustes en la
-configuración de la barra queda; límpiala a mano si quieres. Las mascotas del
-petdex no se tocan.
-
-## Créditos
-
-- **Madmasx** — creador del plugin.
-- **Opencode** — asistente de desarrollo ([opencode](https://github.com/anomalyco/opencode)).
-- **Hermes** — el agente que da vida a la mascota.
-
-Las mascotas son assets de terceros, no forman parte de este repo y cada una
-conserva su propia licencia.
 
 ## Licencia
 
-MIT — ver LICENSE.
-
----
-
-## `$ ls ~/contacto`
-
-[![X](https://img.shields.io/badge/X-@madmasx-000000?style=for-the-badge&logo=x&logoColor=E63946&labelColor=0d1117&color=E63946)](https://x.com/madmasx)
-[![GitHub](https://img.shields.io/badge/GitHub-madmasx-000000?style=for-the-badge&logo=github&logoColor=E63946&labelColor=0d1117&color=E63946)](https://github.com/madmasx)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-apóyame-000000?style=for-the-badge&logo=buymeacoffee&logoColor=E63946&labelColor=0d1117&color=E63946)](https://buymeacoffee.com/madmasx)
+MIT — ver `LICENSE`.

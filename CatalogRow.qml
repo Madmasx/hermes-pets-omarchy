@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 CursorSurface {
@@ -10,7 +11,7 @@ CursorSurface {
   property bool smoothScaling: true
   property bool installed: false
   property bool busy: false
-  property color foreground: Style.textPrimary
+  property color foreground: Commons.Color.popups.text
 
   signal clicked()
 
@@ -51,6 +52,7 @@ CursorSurface {
 
       Text {
         width: parent.width
+        textFormat: Text.PlainText
         text: row.petName
         color: row.foreground
         font.family: row.fontFamily
@@ -61,6 +63,7 @@ CursorSurface {
       Text {
         width: parent.width
         visible: row.petKind !== ""
+        textFormat: Text.PlainText
         text: row.petKind
         color: Qt.darker(row.foreground, 1.5)
         font.family: row.fontFamily
@@ -75,8 +78,9 @@ CursorSurface {
     anchors.verticalCenter: parent.verticalCenter
     anchors.right: parent.right
     anchors.rightMargin: Style.spacing.rowPaddingX
+    textFormat: Text.PlainText
     text: row.busy ? "Instalando…" : (row.installed ? "✓ Instalada" : "Instalar")
-    color: row.installed ? "#6c63ff" : row.foreground
+    color: row.installed ? Commons.Color.accent : row.foreground
     opacity: row.installed ? 1.0 : 0.6
     font.family: row.fontFamily
     font.pixelSize: Style.font.caption

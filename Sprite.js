@@ -14,10 +14,8 @@ var POSES = {
   running: { row: 7, durations: [120, 120, 120, 120, 120, 220] }
 }
 
-// Hermes agent activity poses — canonical Hermes state names → row + durations.
-// These are the values written by activity-writer.py into activity-state.json.
-// The watcher translates Hermes runtime signals (active_agents, tool events) to
-// these pose labels.
+// Activity poses — canonical state names -> row + durations.
+// Values read from activity-state.json inside the pets folder.
 var ACTIVITY_POSES = {
   idle:    { row: 0, durations: [280, 110, 110, 140, 140, 320] },   // nothing happening
   run:     { row: 7, durations: [120, 120, 120, 120, 120, 220] },   // turn/tool in flight

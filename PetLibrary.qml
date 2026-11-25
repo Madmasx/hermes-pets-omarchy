@@ -3,7 +3,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Enumerates <petsDir>/*/ and keeps the valid Hermes petdex pets.
+// Enumerates <petsDir>/*/ using the bundled petdex.py helper and keeps valid pets.
 QtObject {
   id: root
 
@@ -14,18 +14,19 @@ QtObject {
   property bool rescanPending: false
 
   // One line per entry: "pet\t<dir>\t<json>" or "skip\t<dir>\t<reason>".
-  readonly property string scanner: String(Qt.resolvedUrl("scan.py")).replace(/^file:\/\//, "")
-  readonly property int scanTimeoutSec: 10
+  readonly property string manager: String(Qt.resolvedUrl("petdex.py")).replace(/^file:\/\//, "")
+  readonly property int scanTimeoutMs: 10000
 
   function rescan() {
-    if (!active) return
+    if (!active || !petsDir) return
     if (scan.running) {
       rescanPending = true
       return
     }
     scanDir = petsDir
-    scan.command = ["timeout", "-k", "2", String(scanTimeoutSec), "python3", scanner, scanDir]
+    scan.command = ["python3", "-B", manager, "scan", scanDir]
     scan.running = true
+    scanWatchdog.restart()
   }
 
   function apply(output) {
@@ -38,16 +39,24 @@ QtObject {
         console.warn("hermes-pets: skipped " + parts[1] + ": " + parts[2])
         continue
       }
-      if (parts[0] !== "pet") throw new Error("hermes-pets: unexpected scan line: " + lines[i])
+      if (parts[0] !== "pet" || parts.length < 3) {
+        console.warn("hermes-pets: unexpected scan line: " + lines[i])
+        continue
+      }
       var dir = parts[1]
-      var meta = JSON.parse(parts[2])
+      var meta = null
+      try {
+        meta = JSON.parse(parts[2])
+      } catch (err) {
+        console.warn("hermes-pets: invalid scan json for " + dir + ": " + err)
+        continue
+      }
       var name = dir.slice(dir.lastIndexOf("/") + 1)
       next.push({
         name: name,
-        displayName: meta.displayName || meta.id,
+        displayName: meta.displayName || meta.id || name,
         kind: meta.kind || "",
-        sheetUrl: Util.fileUrl(dir + "/" + meta.spritesheetPath),
-        thumbUrl: Util.fileUrl(root.petsDir + "/.thumbs/" + name + ".png")
+        sheetUrl: Util.fileUrl(dir + "/" + meta.spritesheetPath)
       })
     }
     if (JSON.stringify(next) === JSON.stringify(pets)) return
@@ -56,13 +65,24 @@ QtObject {
     console.log("hermes-pets: " + next.length + " pet(s) in " + petsDir + (names ? ": " + names : ""))
   }
 
+  property Timer scanWatchdog: Timer {
+    interval: root.scanTimeoutMs
+    repeat: false
+    onTriggered: {
+      if (scan.running) {
+        console.warn("hermes-pets: scan of " + root.scanDir + " timed out after " + (root.scanTimeoutMs / 1000) + " s")
+        scan.running = false
+      }
+    }
+  }
+
   property Process scan: Process {
     stdout: StdioCollector { id: scanOut; waitForEnd: true }
     stderr: StdioCollector { id: scanErr; waitForEnd: true }
     onExited: function(code, status) {
+      scanWatchdog.stop()
       if (scanErr.text) console.warn("hermes-pets: scan stderr: " + scanErr.text.trim())
-      if (code === 124) console.warn("hermes-pets: scan of " + root.scanDir + " timed out after " + root.scanTimeoutSec + " s")
-      else if (code !== 0) console.warn("hermes-pets: scan of " + root.scanDir + " exited with " + code)
+      if (code !== 0) console.warn("hermes-pets: scan of " + root.scanDir + " exited with " + code)
       else if (root.scanDir === root.petsDir) root.apply(scanOut.text)
       if (root.rescanPending) {
         root.rescanPending = false

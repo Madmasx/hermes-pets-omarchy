@@ -23,15 +23,19 @@ Item {
   property bool dragMoved: false
 
   readonly property bool ready: sheet.status === Image.Ready
-  readonly property int rows: ready ? sheet.sourceSize.height / 208 : 0
+  readonly property int rows: ready ? Math.floor(sheet.sourceSize.height / 208) : 0
   readonly property bool lookEnabled: rows >= Sprite.LOOK_ROWS
   readonly property bool looking: running && lookEnabled && hovering && pose === "idle"
   readonly property bool ticking: running && !looking
-  // Acepta tanto nombres propios del sprite (running/waving/jumping/waiting) como
-  // los canónicos de Hermes que escribe activity-state.json (run/review/wave/jump/failed).
+
   function poseDef(name) {
     return Sprite.POSES[name] || Sprite.ACTIVITY_POSES[name] || Sprite.LOCOMOTION[name] || Sprite.POSES.idle
   }
+
+  function safeRow(rowIdx) {
+    return (rows > 0 && rowIdx >= 0 && rowIdx < rows) ? rowIdx : 0
+  }
+
   readonly property var durations: poseDef(pose).durations
   readonly property int loopMs: {
     var d = durations
@@ -41,7 +45,7 @@ Item {
   }
   readonly property bool hasLocomotion: rows >= 3
   readonly property var cell: looking ? look
-    : (neutralBeat ? { row: 0, frame: Sprite.NEUTRAL_FRAME } : { row: poseDef(pose).row, frame: frame })
+    : (neutralBeat ? { row: 0, frame: Sprite.NEUTRAL_FRAME } : { row: safeRow(poseDef(pose).row), frame: frame })
   property url loggedSheet
 
   signal dragged(real dx, real dy)
@@ -58,7 +62,8 @@ Item {
   }
 
   function arm() {
-    clock.interval = durations[frame]
+    var d = durations
+    clock.interval = (d && frame >= 0 && frame < d.length) ? d[frame] : 160
     clock.restart()
   }
 
@@ -73,7 +78,7 @@ Item {
     frame = 0
     neutralBeat = false
     lastAction = name
-    loopsLeft = loops
+    loopsLeft = Math.max(1, loops || 1)
     pose = name
   }
 
@@ -102,9 +107,9 @@ Item {
   function drag(x, y) {
     var dx = x - pressX
     var dy = y - pressY
-    if (!dragMoved && Math.hypot(dx, dy) < 1) return
+    if (!dragMoved && Math.hypot(dx, dy) < 2) return
     if (!dragMoved) {
-      // primer movimiento: centrar el pet bajo el cursor (compensar el punto de agarre)
+      // First drag movement: center the pet under the cursor.
       dragged(pressX - width / 2 + dx, pressY - height / 2 + dy)
       lastX = x
       lastY = y
@@ -133,7 +138,7 @@ Item {
     var elapsed = clock.interval
     frame = (frame + 1) % durations.length
     if (pose !== "idle") {
-      if (frame === 0 && --loopsLeft === 0) beginIdle()
+      if (frame === 0 && --loopsLeft <= 0) beginIdle()
     } else {
       waitMs -= elapsed
       if (randomBehavior && waitMs <= 0) beginAction(Sprite.pickAction(lastAction, Math.random()), Sprite.ACTION_LOOPS)
@@ -142,7 +147,6 @@ Item {
   }
 
   onRunningChanged: {
-    console.log("hermes-pets: animation " + (running ? "started" : "stopped"))
     if (running) beginIdle()
     else {
       clock.stop()
@@ -178,7 +182,6 @@ Item {
       root.loggedSheet = source
       if (sourceSize.width !== 1536 || sourceSize.height % 208 !== 0)
         console.warn("hermes-pets: unexpected atlas size " + sourceSize.width + "x" + sourceSize.height + " for " + source)
-      console.log("hermes-pets: loaded " + source + " rows=" + sourceSize.height / 208)
     }
   }
 

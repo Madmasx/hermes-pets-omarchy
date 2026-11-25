@@ -9,7 +9,7 @@ BarWidget {
 
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property var pet: panelLoader.item ? panelLoader.item.currentPet : null
-  readonly property bool smoothScaling: setting("smooth", true) === true
+  readonly property bool smoothScaling: root.setting("smooth", true) === true
 
   function open() { if (panelLoader.item) panelLoader.item.open() }
   function close() { if (panelLoader.item) panelLoader.item.close() }
@@ -24,11 +24,11 @@ BarWidget {
     target.hostWidget = root
   }
 
-  implicitWidth: vertical ? barSize : Style.bar.iconSlot
-  implicitHeight: vertical ? barSize : barSize
+  implicitWidth: root.vertical ? root.barSize : Style.bar.iconSlot
+  implicitHeight: root.barSize
 
-  onBarChanged: injectPanel()
-  onSettingsChanged: injectPanel()
+  onBarChanged: root.injectPanel()
+  onSettingsChanged: root.injectPanel()
 
   Loader {
     id: panelLoader
@@ -41,7 +41,6 @@ BarWidget {
     }
   }
 
-  // Icono cuando NO hay mascota seleccionada: image.png del proyecto
   Component {
     id: fallbackIcon
 
@@ -52,7 +51,6 @@ BarWidget {
     }
   }
 
-  // Icono cuando hay mascota: suhoja de sprite del petdex
   Component {
     id: petIcon
 
