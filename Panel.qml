@@ -448,7 +448,7 @@ Panel {
 
     onOpenedChanged: {
         if (opened) {
-            root.panelNotice = ""
+            root.setPanelNotice("")
             library.rescan()
         }
     }
@@ -516,19 +516,50 @@ Panel {
         root.saveSetting("petScale", next)
     }
 
+    // --- Translations (follows PC / Omarchy language live) -------------------
+    Commons.Translations {
+        id: strings
+        directory: Qt.resolvedUrl("i18n")
+    }
+
     // --- Self-contained pet management via petdex.py -------------------------
-    property string panelNotice: ""
+    property string panelNoticeKey: ""
+    property string panelNoticeArg: ""
+    readonly property string panelNotice: {
+        if (!root.panelNoticeKey) return ""
+        return root.panelNoticeArg ? strings.t(root.panelNoticeKey).arg(root.panelNoticeArg) : strings.t(root.panelNoticeKey)
+    }
+
     property bool catalogOpen: false
     property var catalogAll: []
-    property string catalogStatus: "Pulsa + para cargar el catálogo"
+    property string catalogStatusKey: "catalog.prompt"
+    property string catalogStatusArg1: ""
+    property string catalogStatusArg2: ""
+    readonly property string catalogStatus: {
+        var tpl = strings.t(root.catalogStatusKey)
+        if (root.catalogStatusArg2 !== "") return tpl.arg(root.catalogStatusArg1).arg(root.catalogStatusArg2)
+        if (root.catalogStatusArg1 !== "") return tpl.arg(root.catalogStatusArg1)
+        return tpl
+    }
     property string catalogInstalling: ""
     property bool removingPet: false
+
+    function setCatalogStatus(key, arg1, arg2) {
+        root.catalogStatusKey = key
+        root.catalogStatusArg1 = arg1 !== undefined && arg1 !== null ? String(arg1) : ""
+        root.catalogStatusArg2 = arg2 !== undefined && arg2 !== null ? String(arg2) : ""
+    }
+
+    function setPanelNotice(key, arg) {
+        root.panelNoticeKey = key || ""
+        root.panelNoticeArg = arg !== undefined && arg !== null ? String(arg) : ""
+    }
 
     QtObject { id: catalogOwner; function close() { root.catalogOpen = false } }
 
     function fetchCatalog(refresh) {
         if (catalogFetch.running) return
-        root.catalogStatus = refresh ? "Actualizando catálogo…" : "Cargando catálogo…"
+        root.setCatalogStatus(refresh ? "catalog.refreshing" : "catalog.loading")
         catalogFetch.command = refresh
             ? ["python3", "-B", root.manager, "catalog", root.petsDir, "--refresh"]
             : ["python3", "-B", root.manager, "catalog", root.petsDir]
@@ -543,7 +574,7 @@ Panel {
     function installCatalogPet(slug) {
         if (!slug || root.catalogInstalling !== "") return
         root.catalogInstalling = slug
-        root.catalogStatus = "Instalando " + slug + "…"
+        root.setCatalogStatus("catalog.installing", slug)
         installProc.command = ["python3", "-B", root.manager, "install", root.petsDir, slug]
         installProc.running = true
     }
@@ -552,7 +583,7 @@ Panel {
         var target = root.activePetName
         if (!target || root.removingPet) return
         root.removingPet = true
-        root.panelNotice = "Eliminando " + target + "…"
+        root.setPanelNotice("notice.removing", target)
         removeProc.command = ["python3", "-B", root.manager, "remove", root.petsDir, target]
         removeProc.running = true
     }
@@ -643,17 +674,17 @@ Panel {
         stderr: StdioCollector { id: catalogErr; waitForEnd: true }
         onExited: function(code, status) {
             if (code !== 0) {
-                var msg = catalogErr.text.trim() || ("código " + code)
-                root.catalogStatus = "Error al cargar el catálogo: " + msg
+                var msg = catalogErr.text.trim() || ("exit " + code)
+                root.setCatalogStatus("catalog.loadError", msg)
                 return
             }
             try {
                 var data = JSON.parse(catalogOut.text)
                 var arr = (data && data.pets) ? data.pets : []
                 root.catalogAll = arr
-                root.catalogStatus = arr.length + " mascotas disponibles"
+                root.setCatalogStatus("catalog.available", Commons.I18n.formatNumber(arr.length))
             } catch (err) {
-                root.catalogStatus = "Error al leer el catálogo: " + err
+                root.setCatalogStatus("catalog.parseError", err)
             }
         }
     }
@@ -667,11 +698,11 @@ Panel {
             root.catalogInstalling = ""
             if (code === 0) {
                 if (slug) root.saveSetting("petId", slug)
-                root.catalogStatus = "✓ Instalada: " + slug
+                root.setCatalogStatus("catalog.installedOk", slug)
                 library.rescan()
             } else {
-                var msg = installErr.text.trim() || ("código " + code)
-                root.catalogStatus = "Error instalando " + slug + ": " + msg
+                var msg = installErr.text.trim() || ("exit " + code)
+                root.setCatalogStatus("catalog.installError", slug, msg)
                 console.warn("hermes-pets: install failed (" + code + "): " + msg)
             }
         }
@@ -684,14 +715,14 @@ Panel {
         onExited: function(code, status) {
             root.removingPet = false
             if (code === 0) {
-                root.panelNotice = ""
+                root.setPanelNotice("")
                 var remaining = library.pets.length - 1
                 root.saveSetting("petId", "")
                 if (remaining <= 0 && root.pinned) root.saveSetting("pinned", false)
                 library.rescan()
             } else {
-                var msg = removeErr.text.trim() || ("código " + code)
-                root.panelNotice = "Error al eliminar: " + msg
+                var msg = removeErr.text.trim() || ("exit " + code)
+                root.setPanelNotice("notice.removeError", msg)
                 console.warn("hermes-pets: remove failed (" + code + "): " + msg)
             }
         }
@@ -717,7 +748,7 @@ Panel {
             PanelHero {
                 width: parent.width
                 title: "Hermes Pets"
-                meta: root.currentPet ? root.currentPet.displayName : "No hay mascota"
+                meta: root.currentPet ? root.currentPet.displayName : strings.t("panel.noPet")
                 foreground: root.barForeground
                 fontFamily: root.fontFamily
             }
@@ -725,7 +756,7 @@ Panel {
             PanelSeparator { foreground: root.barForeground }
 
             PanelSectionHeader {
-                text: "Mascotas instaladas (" + library.pets.length + ")"
+                text: strings.t("panel.installed").arg(Commons.I18n.formatNumber(library.pets.length))
                 foreground: root.barForeground
                 fontFamily: root.fontFamily
             }
@@ -758,7 +789,7 @@ Panel {
                 id: noPetsText
                 width: parent.width
                 textFormat: Text.PlainText
-                text: "No hay mascotas instaladas.\nPulsa el botón  +  para abrir el catálogo petdex."
+                text: strings.t("panel.empty")
                 color: root.barForeground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
@@ -769,21 +800,21 @@ Panel {
 
             PanelSeparator { foreground: root.barForeground }
 
-            PanelSectionHeader { text: "Acciones"; foreground: root.barForeground; fontFamily: root.fontFamily }
+            PanelSectionHeader { text: strings.t("panel.actions"); foreground: root.barForeground; fontFamily: root.fontFamily }
 
             Row {
                 spacing: Style.space(6)
                 PanelActionButton {
                     visible: root.currentPet !== null
                     iconText: root.pinned ? "\uf024" : "\uf08d"
-                    tooltipText: root.pinned ? "Quitar del escritorio" : "Fijar al escritorio"
+                    tooltipText: root.pinned ? strings.t("action.unpin") : strings.t("action.pin")
                     foreground: root.barForeground; fontFamily: root.fontFamily
                     onClicked: root.saveSetting("pinned", !root.pinned)
                 }
                 PanelActionButton {
                     visible: root.shownPinned && root.animate
                     iconText: "\uf256"
-                    tooltipText: "Saludar"
+                    tooltipText: strings.t("action.wave")
                     foreground: root.barForeground; fontFamily: root.fontFamily
                     onClicked: { if (sprite) sprite.wave() }
                 }
@@ -791,13 +822,13 @@ Panel {
                     id: removePetBtn
                     visible: root.activePetName !== "" && !root.removingPet
                     iconText: "\uf014"
-                    tooltipText: "Eliminar mascota actual"
+                    tooltipText: strings.t("action.remove")
                     foreground: root.barForeground; fontFamily: root.fontFamily
                     onClicked: root.removePet()
                 }
                 PanelActionButton {
                     iconText: "\uf067"
-                    tooltipText: "Instalar mascota (catálogo petdex)"
+                    tooltipText: strings.t("action.catalog")
                     foreground: root.barForeground; fontFamily: root.fontFamily
                     onClicked: root.openCatalog()
                 }
@@ -816,7 +847,7 @@ Panel {
 
             PanelSeparator { foreground: root.barForeground }
 
-            PanelSectionHeader { text: "Configuración"; foreground: root.barForeground; fontFamily: root.fontFamily }
+            PanelSectionHeader { text: strings.t("panel.settings"); foreground: root.barForeground; fontFamily: root.fontFamily }
 
             Column {
                 id: settingsColumn
@@ -824,47 +855,47 @@ Panel {
                 spacing: Style.space(4)
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlAnim.width - Style.space(10); textFormat: Text.PlainText; text: "Animación"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlAnim.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.animate"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlAnim; ToggleSwitch { checked: root.animate; onToggled: root.toggleAnimate() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlRoam.width - Style.space(10); textFormat: Text.PlainText; text: "Deambular por la pantalla"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlRoam.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.roam"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlRoam; ToggleSwitch { checked: root.randomBehavior; onToggled: root.toggleRandomBehavior() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlFlight.width - Style.space(10); textFormat: Text.PlainText; text: "Vuelo libre (toda la pantalla)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlFlight.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.freeFlight"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlFlight; ToggleSwitch { checked: root.freeFlight; onToggled: root.toggleFreeFlight() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlMove.width - Style.space(10); textFormat: Text.PlainText; text: "Permitir arrastrar"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlMove.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.movable"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlMove; ToggleSwitch { checked: root.movable; onToggled: root.toggleMovable() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlGravity.width - Style.space(10); textFormat: Text.PlainText; text: "Gravedad (cae al soltar)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlGravity.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.gravity"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlGravity; ToggleSwitch { checked: root.gravityEnabled; onToggled: root.toggleGravity() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlSmooth.width - Style.space(10); textFormat: Text.PlainText; text: "Suavizado (apagar para pixel art)"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlSmooth.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.smooth"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlSmooth; ToggleSwitch { checked: root.smoothScaling; onToggled: root.toggleSmooth() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlActivity.width - Style.space(10); textFormat: Text.PlainText; text: "Reaccionar a actividad"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlActivity.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.activity"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlActivity; ToggleSwitch { checked: root.activityEnabled; onToggled: root.toggleActivity() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10); visible: root.clickCommand !== ""
-                    Text { width: parent.width - ctrlLaunch.width - Style.space(10); textFormat: Text.PlainText; text: "Ejecutar comando al hacer clic"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlLaunch.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.launchOnClick"); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlLaunch; ToggleSwitch { checked: root.launchOnClick; onToggled: root.toggleLaunchOnClick() } }
                 }
 
                 Row { width: parent.width; spacing: Style.space(10)
-                    Text { width: parent.width - ctrlScale.width - Style.space(10); textFormat: Text.PlainText; text: "Tamaño: " + Math.round(root.petScale * 100) + "%"; color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
+                    Text { width: parent.width - ctrlScale.width - Style.space(10); textFormat: Text.PlainText; text: strings.t("setting.scale").arg(Commons.I18n.formatNumber(Math.round(root.petScale * 100))); color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; elide: Text.ElideRight }
                     Row { id: ctrlScale; spacing: Style.space(4)
                         Button { text: "-"; width: Style.space(32); foreground: root.barForeground; fontFamily: root.fontFamily; fontSize: 14; onClicked: root.setScale(root.petScale - 0.25) }
                         Button { text: "+"; width: Style.space(32); foreground: root.barForeground; fontFamily: root.fontFamily; fontSize: 14; onClicked: root.setScale(root.petScale + 0.25) }
@@ -874,7 +905,7 @@ Panel {
 
             PanelSeparator { foreground: root.barForeground }
 
-            PanelSectionHeader { text: "Estado actual"; foreground: root.barForeground; fontFamily: root.fontFamily }
+            PanelSectionHeader { text: strings.t("panel.status"); foreground: root.barForeground; fontFamily: root.fontFamily }
 
             Column {
                 id: statusColumn
@@ -884,27 +915,27 @@ Panel {
                 Text {
                     width: parent.width
                     textFormat: Text.PlainText
-                    text: "Mascota: " + (root.currentPet ? root.currentPet.displayName : "Ninguna")
+                    text: strings.t("status.pet").arg(root.currentPet ? root.currentPet.displayName : strings.t("status.none"))
                     color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.body; opacity: 0.85
                     elide: Text.ElideRight
                 }
                 Text {
                     width: parent.width
                     textFormat: Text.PlainText
-                    text: "Estado: " + (root.activityEnabled ? root.activityPose : "idle (sin monitoreo)")
+                    text: strings.t("status.state").arg(root.activityEnabled ? root.activityPose : strings.t("status.idleUnmonitored"))
                     color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7
                     elide: Text.ElideRight
                 }
                 Text {
                     width: parent.width
                     textFormat: Text.PlainText
-                    text: root.pinned ? ("Fijada en escritorio" + (root.movable ? " (movible)" : " (fija)")) : "Solo en barra"
+                    text: root.pinned ? (root.movable ? strings.t("status.pinnedMovable") : strings.t("status.pinnedFixed")) : strings.t("status.barOnly")
                     color: root.barForeground; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.7
                 }
                 Text {
                     width: parent.width
                     textFormat: Text.PlainText
-                    text: "Alt + rueda sobre la mascota para escalar"
+                    text: strings.t("status.hint")
                     color: Commons.Color.accent; font.family: root.fontFamily; font.pixelSize: Style.font.caption; opacity: 0.85
                 }
             }
@@ -932,7 +963,7 @@ Panel {
 
             PanelHero {
                 width: parent.width
-                title: "Catálogo petdex"
+                title: strings.t("catalog.title")
                 meta: root.catalogStatus
                 foreground: root.barForeground
                 fontFamily: root.fontFamily
@@ -947,7 +978,7 @@ Panel {
                 TextField {
                     id: searchField
                     width: parent.width - refreshBtn.width - Style.space(6)
-                    placeholderText: "Buscar por nombre o slug…"
+                    placeholderText: strings.t("catalog.searchPlaceholder")
                     foreground: root.barForeground
                     Keys.onEscapePressed: root.catalogOpen = false
                 }
@@ -955,7 +986,7 @@ Panel {
                 PanelActionButton {
                     id: refreshBtn
                     iconText: "\uf021"
-                    tooltipText: "Actualizar catálogo desde petdex.dev"
+                    tooltipText: strings.t("catalog.refreshTooltip")
                     foreground: root.barForeground
                     fontFamily: root.fontFamily
                     onClicked: root.fetchCatalog(true)
@@ -976,6 +1007,9 @@ Panel {
                     foreground: root.barForeground
                     installed: root.isInstalled(modelData.slug)
                     busy: root.catalogInstalling === modelData.slug
+                    installingLabel: strings.t("catalog.row.installing")
+                    installedLabel: strings.t("catalog.row.installed")
+                    installLabel: strings.t("catalog.row.install")
                     onClicked: root.installCatalogPet(modelData.slug)
                 }
 
@@ -986,7 +1020,7 @@ Panel {
                 width: parent.width
                 visible: catalogList.count === 0
                 textFormat: Text.PlainText
-                text: root.catalogAll.length === 0 ? root.catalogStatus : "Sin resultados para «" + searchField.text + "»"
+                text: root.catalogAll.length === 0 ? root.catalogStatus : strings.t("catalog.noResults").arg(searchField.text)
                 color: root.barForeground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption

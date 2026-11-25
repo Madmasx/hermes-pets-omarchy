@@ -12,6 +12,9 @@ CursorSurface {
   property bool installed: false
   property bool busy: false
   property color foreground: Commons.Color.popups.text
+  property string installingLabel: "Installing…"
+  property string installedLabel: "✓ Installed"
+  property string installLabel: "Install"
 
   signal clicked()
 
@@ -79,7 +82,7 @@ CursorSurface {
     anchors.right: parent.right
     anchors.rightMargin: Style.spacing.rowPaddingX
     textFormat: Text.PlainText
-    text: row.busy ? "Instalando…" : (row.installed ? "✓ Instalada" : "Instalar")
+    text: row.busy ? row.installingLabel : (row.installed ? row.installedLabel : row.installLabel)
     color: row.installed ? Commons.Color.accent : row.foreground
     opacity: row.installed ? 1.0 : 0.6
     font.family: row.fontFamily
